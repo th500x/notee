@@ -16,7 +16,7 @@
     "btcFourYearIndex": 1.6,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -106,7 +106,7 @@
     "btcFourYearIndex": 1.65,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -196,7 +196,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -286,7 +286,7 @@
     "btcFourYearIndex": 1.46,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_recovery",
     "rawData": {
       "btc": {
@@ -376,7 +376,7 @@
     "btcFourYearIndex": 1.23,
     "personalRating": 12,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_with_retry",
     "rawData": {
       "btc": {
@@ -467,7 +467,7 @@
     "btcFourYearIndex": 2.24,
     "personalRating": -5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.659Z",
+    "updatedAt": "2026-10-02T11:15:05.084Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -560,7 +560,7 @@
     "btcFourYearIndex": 2.23,
     "personalRating": -5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -653,7 +653,7 @@
     "btcFourYearIndex": 2.32,
     "personalRating": -6,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -746,7 +746,7 @@
     "btcFourYearIndex": 2.39,
     "personalRating": -6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -839,7 +839,7 @@
     "btcFourYearIndex": 2.33,
     "personalRating": -5,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -932,7 +932,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1025,7 +1025,7 @@
     "btcFourYearIndex": 2.2,
     "personalRating": -2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.085Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1118,7 +1118,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -1,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1211,7 +1211,7 @@
     "btcFourYearIndex": 1.97,
     "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1304,7 +1304,7 @@
     "btcFourYearIndex": 1.95,
     "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1397,7 +1397,7 @@
     "btcFourYearIndex": 1.84,
     "personalRating": 3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1490,7 +1490,7 @@
     "btcFourYearIndex": 1.88,
     "personalRating": 2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1583,7 +1583,7 @@
     "btcFourYearIndex": 1.89,
     "personalRating": 2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1676,7 +1676,7 @@
     "btcFourYearIndex": 1.82,
     "personalRating": 3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1769,7 +1769,7 @@
     "btcFourYearIndex": 1.78,
     "personalRating": 4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1862,7 +1862,7 @@
     "btcFourYearIndex": 1.84,
     "personalRating": 3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -1955,7 +1955,7 @@
     "btcFourYearIndex": 2.02,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2048,7 +2048,7 @@
     "btcFourYearIndex": 2.05,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2141,7 +2141,7 @@
     "btcFourYearIndex": 2.14,
     "personalRating": -2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2234,7 +2234,7 @@
     "btcFourYearIndex": 2.21,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2327,7 +2327,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2420,7 +2420,7 @@
     "btcFourYearIndex": 2.23,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2513,7 +2513,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2606,7 +2606,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2699,7 +2699,7 @@
     "btcFourYearIndex": 2.13,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2792,7 +2792,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2885,7 +2885,7 @@
     "btcFourYearIndex": 2.19,
     "personalRating": -3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -2978,7 +2978,7 @@
     "btcFourYearIndex": 2.29,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3071,7 +3071,7 @@
     "btcFourYearIndex": 2.37,
     "personalRating": -6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.086Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3164,7 +3164,7 @@
     "btcFourYearIndex": 2.35,
     "personalRating": -5,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3257,7 +3257,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3350,7 +3350,7 @@
     "btcFourYearIndex": 2.28,
     "personalRating": -4,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3443,7 +3443,7 @@
     "btcFourYearIndex": 2.32,
     "personalRating": -4,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3536,7 +3536,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3629,7 +3629,7 @@
     "btcFourYearIndex": 2.12,
     "personalRating": -1,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3722,7 +3722,7 @@
     "btcFourYearIndex": 2.12,
     "personalRating": -1,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3815,7 +3815,7 @@
     "btcFourYearIndex": 2.18,
     "personalRating": -2,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -3908,7 +3908,7 @@
     "btcFourYearIndex": 2.21,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4001,7 +4001,7 @@
     "btcFourYearIndex": 2.1,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4094,7 +4094,7 @@
     "btcFourYearIndex": 2.25,
     "personalRating": -3,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4187,7 +4187,7 @@
     "btcFourYearIndex": 2.22,
     "personalRating": -3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4280,7 +4280,7 @@
     "btcFourYearIndex": 2.04,
     "personalRating": 0,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4373,7 +4373,7 @@
     "btcFourYearIndex": 2.04,
     "personalRating": 0,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4466,7 +4466,7 @@
     "btcFourYearIndex": 2.04,
     "personalRating": 0,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4559,7 +4559,7 @@
     "btcFourYearIndex": 1.89,
     "personalRating": 3,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4652,7 +4652,7 @@
     "btcFourYearIndex": 1.8,
     "personalRating": 6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4745,7 +4745,7 @@
     "btcFourYearIndex": 1.6,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4838,7 +4838,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -4931,7 +4931,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5024,7 +5024,7 @@
     "btcFourYearIndex": 1.62,
     "personalRating": 6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5117,7 +5117,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 8,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5210,7 +5210,7 @@
     "btcFourYearIndex": 1.55,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5303,7 +5303,7 @@
     "btcFourYearIndex": 1.57,
     "personalRating": 7,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "yahoo_finance_api",
     "rawData": {
       "btc": {
@@ -5396,7 +5396,7 @@
     "btcFourYearIndex": 1.19,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -5630,7 +5630,7 @@
     "btcFourYearIndex": 1.17,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.660Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -5870,7 +5870,7 @@
     "btcFourYearIndex": 1.15,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -6110,7 +6110,7 @@
     "btcFourYearIndex": 1.19,
     "personalRating": 11,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -6350,7 +6350,7 @@
     "btcFourYearIndex": 1.22,
     "personalRating": 11,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -6590,7 +6590,7 @@
     "btcFourYearIndex": 1.22,
     "personalRating": 11,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -6833,7 +6833,7 @@
     "btcFourYearIndex": 1.18,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -7073,7 +7073,7 @@
     "btcFourYearIndex": 1.16,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -7313,7 +7313,7 @@
     "btcFourYearIndex": 1.22,
     "personalRating": 10,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -7553,7 +7553,7 @@
     "btcFourYearIndex": 1.28,
     "personalRating": 8,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -7793,7 +7793,7 @@
     "btcFourYearIndex": 1.32,
     "personalRating": 6,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -8033,7 +8033,7 @@
     "btcFourYearIndex": 1.31,
     "personalRating": 6,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -8275,7 +8275,7 @@
     "btcFourYearIndex": 1.36,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -8517,7 +8517,7 @@
     "btcFourYearIndex": 1.34,
     "personalRating": 6,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -8757,7 +8757,7 @@
     "btcFourYearIndex": 1.29,
     "personalRating": 6,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -8997,7 +8997,7 @@
     "btcFourYearIndex": 1.25,
     "personalRating": 7,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -9237,7 +9237,7 @@
     "btcFourYearIndex": 1.07,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -9477,7 +9477,7 @@
     "btcFourYearIndex": 1.05,
     "personalRating": 10,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -9717,7 +9717,7 @@
     "btcFourYearIndex": 1.07,
     "personalRating": 10,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -9960,7 +9960,7 @@
     "btcFourYearIndex": 1.01,
     "personalRating": 11,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -10200,7 +10200,7 @@
     "btcFourYearIndex": 1.01,
     "personalRating": 10,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -10440,7 +10440,7 @@
     "btcFourYearIndex": 1.04,
     "personalRating": 9,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -10680,7 +10680,7 @@
     "btcFourYearIndex": 1.05,
     "personalRating": 9,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -10920,7 +10920,7 @@
     "btcFourYearIndex": 1.06,
     "personalRating": 9,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -11160,7 +11160,7 @@
     "btcFourYearIndex": 1.03,
     "personalRating": 9,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -11403,7 +11403,7 @@
     "btcFourYearIndex": 1.04,
     "personalRating": 8,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -11643,7 +11643,7 @@
     "btcFourYearIndex": 1.02,
     "personalRating": 8,
     "marketTrend": "bearish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -11883,7 +11883,7 @@
     "btcFourYearIndex": 1.16,
     "personalRating": 5,
     "marketTrend": "bullish",
-    "updatedAt": "2026-08-29T06:44:42.661Z",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -12104,6 +12104,1209 @@
       "bojRate": 1
     },
     "totalScore": 5,
+    "t0Must": null
+  },
+  "2026-W34": {
+    "weekId": "2026-W34",
+    "year": 2026,
+    "weekNumber": 34,
+    "weekStart": "2026-08-24",
+    "weekEnd": "2026-08-30",
+    "btcWeeklyChange": 12.41,
+    "btcWeeklyAvgPrice": 78647.11,
+    "ethWeeklyAvgPrice": 2471.94,
+    "fearGreedIndex": 70,
+    "mayerMultiple": 1.14,
+    "ahr999": 0.5,
+    "ethBtcRatio": 0.03141,
+    "btcFromATH": -37.6,
+    "btcFourYearIndex": 1.26,
+    "personalRating": 2,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 78647.11,
+        "prices": [
+          77712.3200924702,
+          78973.88693602335,
+          78511.2331116067,
+          79018.03405750773,
+          80268.37474707834,
+          77820.76428719184,
+          78225.13950818499
+        ],
+        "dates": [
+          "2026-08-24",
+          "2026-08-25",
+          "2026-08-26",
+          "2026-08-27",
+          "2026-08-28",
+          "2026-08-29",
+          "2026-08-30"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2471.94,
+        "prices": [
+          2462.403924751607,
+          2481.879430655568,
+          2442.0111121033965,
+          2506.3431057180687,
+          2511.461241063819,
+          2442.407614756763,
+          2457.089335222437
+        ],
+        "dates": [
+          "2026-08-24",
+          "2026-08-25",
+          "2026-08-26",
+          "2026-08-27",
+          "2026-08-28",
+          "2026-08-29",
+          "2026-08-30"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 78647.11,
+        "previousWeekId": "2026-W33",
+        "weeklyChange": 12.41
+      },
+      "ratioData": {
+        "calculationDate": "2026-08-30",
+        "ethBtcRatio": 0.03141
+      },
+      "fearGreed": {
+        "weeklyAverage": 70,
+        "daily": [
+          {
+            "date": "2026-08-24",
+            "value": 73
+          },
+          {
+            "date": "2026-08-25",
+            "value": 74
+          },
+          {
+            "date": "2026-08-26",
+            "value": 65
+          },
+          {
+            "date": "2026-08-27",
+            "value": 71
+          },
+          {
+            "date": "2026-08-28",
+            "value": 73
+          },
+          {
+            "date": "2026-08-29",
+            "value": 68
+          },
+          {
+            "date": "2026-08-30",
+            "value": 69
+          }
+        ]
+      },
+      "mayer": {
+        "weeklyAverage": 1.14,
+        "weekEndDate": "2026-08-30",
+        "weekEndValue": 1.12,
+        "daily": [
+          {
+            "date": "2026-08-24",
+            "value": 1.14,
+            "close": 78992.75,
+            "ma": 69123
+          },
+          {
+            "date": "2026-08-25",
+            "value": 1.14,
+            "close": 78539.14,
+            "ma": 69162.79
+          },
+          {
+            "date": "2026-08-26",
+            "value": 1.14,
+            "close": 79023.75,
+            "ma": 69211.46
+          },
+          {
+            "date": "2026-08-27",
+            "value": 1.16,
+            "close": 80249.58,
+            "ma": 69261.06
+          },
+          {
+            "date": "2026-08-28",
+            "value": 1.12,
+            "close": 77845.87,
+            "ma": 69299.6
+          },
+          {
+            "date": "2026-08-29",
+            "value": 1.13,
+            "close": 78230,
+            "ma": 69346.54
+          },
+          {
+            "date": "2026-08-30",
+            "value": 1.12,
+            "close": 77682,
+            "ma": 69399.54
+          }
+        ]
+      },
+      "btcFourYearIndex": {
+        "weeklyAverage": 1.26,
+        "weekEndDate": "2026-08-30",
+        "weekEndValue": 1.24,
+        "windowDays": 1460,
+        "daily": [
+          {
+            "date": "2026-08-24",
+            "value": 1.27,
+            "close": 78992.75,
+            "ma": 62428.1
+          },
+          {
+            "date": "2026-08-25",
+            "value": 1.26,
+            "close": 78539.14,
+            "ma": 62468.03
+          },
+          {
+            "date": "2026-08-26",
+            "value": 1.26,
+            "close": 79023.75,
+            "ma": 62508.43
+          },
+          {
+            "date": "2026-08-27",
+            "value": 1.28,
+            "close": 80249.58,
+            "ma": 62550.01
+          },
+          {
+            "date": "2026-08-28",
+            "value": 1.24,
+            "close": 77845.87,
+            "ma": 62589.43
+          },
+          {
+            "date": "2026-08-29",
+            "value": 1.25,
+            "close": 78230,
+            "ma": 62629.44
+          },
+          {
+            "date": "2026-08-30",
+            "value": 1.24,
+            "close": 77682,
+            "ma": 62668.92
+          }
+        ]
+      },
+      "ahr999": {
+        "date": "2026-08-30",
+        "value": 0.5
+      }
+    },
+    "sentimentSource": {
+      "fearGreed": "alternative.me_fng",
+      "mayer": "binance_btcusdt",
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com",
+      "fetchedAt": "2026-10-02T10:30:49.054Z"
+    },
+    "fedRate": 3.5,
+    "bojRate": 1,
+    "macroSource": {
+      "fedRate": "FRED:DFEDTARL",
+      "bojRate": "macroRateSchedule:BOJ_POLICY_TIMELINE",
+      "fetchedAt": "2026-10-02T10:30:49.636Z",
+      "warnings": []
+    },
+    "indicatorScores": {
+      "btcWeeklyChange": -1,
+      "btcFromATH": 1,
+      "fearGreedIndex": -1,
+      "mayerMultiple": -1,
+      "ahr999": 1,
+      "btcFourYearIndex": 2,
+      "fedRate": 0,
+      "bojRate": 1
+    },
+    "totalScore": 2,
+    "t0Must": null
+  },
+  "2026-W35": {
+    "weekId": "2026-W35",
+    "year": 2026,
+    "weekNumber": 35,
+    "weekStart": "2026-08-31",
+    "weekEnd": "2026-09-06",
+    "btcWeeklyChange": 0.21,
+    "btcWeeklyAvgPrice": 78811.75,
+    "ethWeeklyAvgPrice": 2447.86,
+    "fearGreedIndex": 68,
+    "mayerMultiple": 1.14,
+    "ahr999": 0.53,
+    "ethBtcRatio": 0.031069,
+    "btcFromATH": -37.5,
+    "btcFourYearIndex": 1.26,
+    "personalRating": 3,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 78811.75,
+        "prices": [
+          77658.23133225394,
+          78552.77932895812,
+          77416.44110979848,
+          77297.13347191992,
+          81264.70153038795,
+          79671.25767420157,
+          79821.69873179746
+        ],
+        "dates": [
+          "2026-08-31",
+          "2026-09-01",
+          "2026-09-02",
+          "2026-09-03",
+          "2026-09-04",
+          "2026-09-05",
+          "2026-09-06"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2447.86,
+        "prices": [
+          2416.2418165172735,
+          2466.565659094493,
+          2417.6758884733536,
+          2390.783044679688,
+          2507.6482840896088,
+          2456.085066364875,
+          2480.0031686031184
+        ],
+        "dates": [
+          "2026-08-31",
+          "2026-09-01",
+          "2026-09-02",
+          "2026-09-03",
+          "2026-09-04",
+          "2026-09-05",
+          "2026-09-06"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 78811.75,
+        "previousWeekId": "2026-W34",
+        "weeklyChange": 0.21
+      },
+      "ratioData": {
+        "calculationDate": "2026-09-06",
+        "ethBtcRatio": 0.031069
+      },
+      "fearGreed": {
+        "weeklyAverage": 68,
+        "daily": [
+          {
+            "date": "2026-08-31",
+            "value": 62
+          },
+          {
+            "date": "2026-09-01",
+            "value": 69
+          },
+          {
+            "date": "2026-09-02",
+            "value": 63
+          },
+          {
+            "date": "2026-09-03",
+            "value": 65
+          },
+          {
+            "date": "2026-09-04",
+            "value": 74
+          },
+          {
+            "date": "2026-09-05",
+            "value": 73
+          },
+          {
+            "date": "2026-09-06",
+            "value": 73
+          }
+        ]
+      },
+      "mayer": {
+        "weeklyAverage": 1.14,
+        "weekEndDate": "2026-09-06",
+        "weekEndValue": 1.15,
+        "daily": [
+          {
+            "date": "2026-08-31",
+            "value": 1.13,
+            "close": 78581.29,
+            "ma": 69461.09
+          },
+          {
+            "date": "2026-09-01",
+            "value": 1.11,
+            "close": 77439,
+            "ma": 69504.01
+          },
+          {
+            "date": "2026-09-02",
+            "value": 1.11,
+            "close": 77340.01,
+            "ma": 69541.6
+          },
+          {
+            "date": "2026-09-03",
+            "value": 1.17,
+            "close": 81270.37,
+            "ma": 69603.79
+          },
+          {
+            "date": "2026-09-04",
+            "value": 1.14,
+            "close": 79660.77,
+            "ma": 69657.63
+          },
+          {
+            "date": "2026-09-05",
+            "value": 1.15,
+            "close": 79831.75,
+            "ma": 69719.27
+          },
+          {
+            "date": "2026-09-06",
+            "value": 1.15,
+            "close": 80341.83,
+            "ma": 69788.67
+          }
+        ]
+      },
+      "btcFourYearIndex": {
+        "weeklyAverage": 1.26,
+        "weekEndDate": "2026-09-06",
+        "weekEndValue": 1.28,
+        "windowDays": 1460,
+        "daily": [
+          {
+            "date": "2026-08-31",
+            "value": 1.25,
+            "close": 78581.29,
+            "ma": 62708.95
+          },
+          {
+            "date": "2026-09-01",
+            "value": 1.23,
+            "close": 77439,
+            "ma": 62748.33
+          },
+          {
+            "date": "2026-09-02",
+            "value": 1.23,
+            "close": 77340.01,
+            "ma": 62787.71
+          },
+          {
+            "date": "2026-09-03",
+            "value": 1.29,
+            "close": 81270.37,
+            "ma": 62829.68
+          },
+          {
+            "date": "2026-09-04",
+            "value": 1.27,
+            "close": 79660.77,
+            "ma": 62870.68
+          },
+          {
+            "date": "2026-09-05",
+            "value": 1.27,
+            "close": 79831.75,
+            "ma": 62912.49
+          },
+          {
+            "date": "2026-09-06",
+            "value": 1.28,
+            "close": 80341.83,
+            "ma": 62954.31
+          }
+        ]
+      },
+      "ahr999": {
+        "date": "2026-09-06",
+        "value": 0.53
+      }
+    },
+    "sentimentSource": {
+      "fearGreed": "alternative.me_fng",
+      "mayer": "binance_btcusdt",
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com",
+      "fetchedAt": "2026-10-02T10:41:53.152Z"
+    },
+    "fedRate": 3.5,
+    "bojRate": 1,
+    "macroSource": {
+      "fedRate": "FRED:DFEDTARL",
+      "bojRate": "macroRateSchedule:BOJ_POLICY_TIMELINE",
+      "fetchedAt": "2026-10-02T10:41:53.549Z",
+      "warnings": []
+    },
+    "indicatorScores": {
+      "btcWeeklyChange": 0,
+      "btcFromATH": 1,
+      "fearGreedIndex": -1,
+      "mayerMultiple": -1,
+      "ahr999": 1,
+      "btcFourYearIndex": 2,
+      "fedRate": 0,
+      "bojRate": 1
+    },
+    "totalScore": 3,
+    "t0Must": null
+  },
+  "2026-W36": {
+    "weekId": "2026-W36",
+    "year": 2026,
+    "weekNumber": 36,
+    "weekStart": "2026-09-07",
+    "weekEnd": "2026-09-13",
+    "btcWeeklyChange": -0.82,
+    "btcWeeklyAvgPrice": 78168.11,
+    "ethWeeklyAvgPrice": 2490.52,
+    "fearGreedIndex": 65,
+    "mayerMultiple": 1.11,
+    "ahr999": 0.48,
+    "ethBtcRatio": 0.032685,
+    "btcFromATH": -38,
+    "btcFourYearIndex": 1.23,
+    "personalRating": 3,
+    "marketTrend": "bearish",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 78168.11,
+        "prices": [
+          80329.3478460037,
+          79093.4641898418,
+          78450.75303870205,
+          78283.06047169256,
+          76554.98664973286,
+          77203.53444805603,
+          77261.62722069985
+        ],
+        "dates": [
+          "2026-09-07",
+          "2026-09-08",
+          "2026-09-09",
+          "2026-09-10",
+          "2026-09-11",
+          "2026-09-12",
+          "2026-09-13"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2490.52,
+        "prices": [
+          2514.0092688310365,
+          2489.3967543757462,
+          2485.0697039871584,
+          2467.529167979314,
+          2437.514812545618,
+          2514.846819245876,
+          2525.267261590238
+        ],
+        "dates": [
+          "2026-09-07",
+          "2026-09-08",
+          "2026-09-09",
+          "2026-09-10",
+          "2026-09-11",
+          "2026-09-12",
+          "2026-09-13"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 78168.11,
+        "previousWeekId": "2026-W35",
+        "weeklyChange": -0.82
+      },
+      "ratioData": {
+        "calculationDate": "2026-09-13",
+        "ethBtcRatio": 0.032685
+      },
+      "fearGreed": {
+        "weeklyAverage": 65,
+        "daily": [
+          {
+            "date": "2026-09-07",
+            "value": 71
+          },
+          {
+            "date": "2026-09-08",
+            "value": 69
+          },
+          {
+            "date": "2026-09-09",
+            "value": 66
+          },
+          {
+            "date": "2026-09-10",
+            "value": 69
+          },
+          {
+            "date": "2026-09-11",
+            "value": 56
+          },
+          {
+            "date": "2026-09-12",
+            "value": 63
+          },
+          {
+            "date": "2026-09-13",
+            "value": 61
+          }
+        ]
+      },
+      "mayer": {
+        "weeklyAverage": 1.11,
+        "weekEndDate": "2026-09-13",
+        "weekEndValue": 1.1,
+        "daily": [
+          {
+            "date": "2026-09-07",
+            "value": 1.13,
+            "close": 79112.01,
+            "ma": 69849.21
+          },
+          {
+            "date": "2026-09-08",
+            "value": 1.12,
+            "close": 78455.8,
+            "ma": 69901.39
+          },
+          {
+            "date": "2026-09-09",
+            "value": 1.12,
+            "close": 78306.43,
+            "ma": 69953.05
+          },
+          {
+            "date": "2026-09-10",
+            "value": 1.09,
+            "close": 76568.72,
+            "ma": 69997.67
+          },
+          {
+            "date": "2026-09-11",
+            "value": 1.1,
+            "close": 77225.7,
+            "ma": 70060.52
+          },
+          {
+            "date": "2026-09-12",
+            "value": 1.1,
+            "close": 77278.73,
+            "ma": 70126.62
+          },
+          {
+            "date": "2026-09-13",
+            "value": 1.1,
+            "close": 76842.01,
+            "ma": 70170.89
+          }
+        ]
+      },
+      "btcFourYearIndex": {
+        "weeklyAverage": 1.23,
+        "weekEndDate": "2026-09-13",
+        "weekEndValue": 1.22,
+        "windowDays": 1460,
+        "daily": [
+          {
+            "date": "2026-09-07",
+            "value": 1.26,
+            "close": 79112.01,
+            "ma": 62995.26
+          },
+          {
+            "date": "2026-09-08",
+            "value": 1.24,
+            "close": 78455.8,
+            "ma": 63034.37
+          },
+          {
+            "date": "2026-09-09",
+            "value": 1.24,
+            "close": 78306.43,
+            "ma": 63073.17
+          },
+          {
+            "date": "2026-09-10",
+            "value": 1.21,
+            "close": 76568.72,
+            "ma": 63110.67
+          },
+          {
+            "date": "2026-09-11",
+            "value": 1.22,
+            "close": 77225.7,
+            "ma": 63148.22
+          },
+          {
+            "date": "2026-09-12",
+            "value": 1.22,
+            "close": 77278.73,
+            "ma": 63187.34
+          },
+          {
+            "date": "2026-09-13",
+            "value": 1.22,
+            "close": 76842.01,
+            "ma": 63226.11
+          }
+        ]
+      },
+      "ahr999": {
+        "date": "2026-09-13",
+        "value": 0.48
+      }
+    },
+    "sentimentSource": {
+      "fearGreed": "alternative.me_fng",
+      "mayer": "binance_btcusdt",
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com",
+      "fetchedAt": "2026-10-02T10:52:57.057Z"
+    },
+    "fedRate": 3.5,
+    "bojRate": 1,
+    "macroSource": {
+      "fedRate": "FRED:DFEDTARL",
+      "bojRate": "macroRateSchedule:BOJ_POLICY_TIMELINE",
+      "fetchedAt": "2026-10-02T10:52:57.514Z",
+      "warnings": []
+    },
+    "indicatorScores": {
+      "btcWeeklyChange": 0,
+      "btcFromATH": 1,
+      "fearGreedIndex": -1,
+      "mayerMultiple": -1,
+      "ahr999": 1,
+      "btcFourYearIndex": 2,
+      "fedRate": 0,
+      "bojRate": 1
+    },
+    "totalScore": 3,
+    "t0Must": null
+  },
+  "2026-W37": {
+    "weekId": "2026-W37",
+    "year": 2026,
+    "weekNumber": 37,
+    "weekStart": "2026-09-14",
+    "weekEnd": "2026-09-20",
+    "btcWeeklyChange": -0.36,
+    "btcWeeklyAvgPrice": 77887.26,
+    "ethWeeklyAvgPrice": 2499.23,
+    "fearGreedIndex": 61,
+    "mayerMultiple": 1.12,
+    "ahr999": 0.53,
+    "ethBtcRatio": 0.032399,
+    "btcFromATH": -38.2,
+    "btcFourYearIndex": 1.24,
+    "personalRating": 2,
+    "marketTrend": "bearish",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 77887.26,
+        "prices": [
+          76819.04496746542,
+          78173.35158344489,
+          75590.24471973324,
+          76146.81236783884,
+          76371.3617203135,
+          80873.58287659245,
+          81236.41383660372
+        ],
+        "dates": [
+          "2026-09-14",
+          "2026-09-15",
+          "2026-09-16",
+          "2026-09-17",
+          "2026-09-18",
+          "2026-09-19",
+          "2026-09-20"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2499.23,
+        "prices": [
+          2476.682526163658,
+          2514.759550467769,
+          2397.4972601650115,
+          2415.9596535242995,
+          2446.143252227872,
+          2611.5555571198493,
+          2632.0095970320526
+        ],
+        "dates": [
+          "2026-09-14",
+          "2026-09-15",
+          "2026-09-16",
+          "2026-09-17",
+          "2026-09-18",
+          "2026-09-19",
+          "2026-09-20"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 77887.26,
+        "previousWeekId": "2026-W36",
+        "weeklyChange": -0.36
+      },
+      "ratioData": {
+        "calculationDate": "2026-09-20",
+        "ethBtcRatio": 0.032399
+      },
+      "fearGreed": {
+        "weeklyAverage": 61,
+        "daily": [
+          {
+            "date": "2026-09-14",
+            "value": 57
+          },
+          {
+            "date": "2026-09-15",
+            "value": 69
+          },
+          {
+            "date": "2026-09-16",
+            "value": 51
+          },
+          {
+            "date": "2026-09-17",
+            "value": 50
+          },
+          {
+            "date": "2026-09-18",
+            "value": 56
+          },
+          {
+            "date": "2026-09-19",
+            "value": 71
+          },
+          {
+            "date": "2026-09-20",
+            "value": 71
+          }
+        ]
+      },
+      "mayer": {
+        "weeklyAverage": 1.12,
+        "weekEndDate": "2026-09-20",
+        "weekEndValue": 1.15,
+        "daily": [
+          {
+            "date": "2026-09-14",
+            "value": 1.11,
+            "close": 78189.21,
+            "ma": 70224.41
+          },
+          {
+            "date": "2026-09-15",
+            "value": 1.08,
+            "close": 75644.48,
+            "ma": 70273.28
+          },
+          {
+            "date": "2026-09-16",
+            "value": 1.08,
+            "close": 76206.01,
+            "ma": 70319.44
+          },
+          {
+            "date": "2026-09-17",
+            "value": 1.09,
+            "close": 76417.01,
+            "ma": 70372.64
+          },
+          {
+            "date": "2026-09-18",
+            "value": 1.15,
+            "close": 80883.87,
+            "ma": 70432.91
+          },
+          {
+            "date": "2026-09-19",
+            "value": 1.15,
+            "close": 81249.99,
+            "ma": 70497.47
+          },
+          {
+            "date": "2026-09-20",
+            "value": 1.15,
+            "close": 81178,
+            "ma": 70540.03
+          }
+        ]
+      },
+      "btcFourYearIndex": {
+        "weeklyAverage": 1.24,
+        "weekEndDate": "2026-09-20",
+        "weekEndValue": 1.28,
+        "windowDays": 1460,
+        "daily": [
+          {
+            "date": "2026-09-14",
+            "value": 1.24,
+            "close": 78189.21,
+            "ma": 63266.17
+          },
+          {
+            "date": "2026-09-15",
+            "value": 1.19,
+            "close": 75644.48,
+            "ma": 63304.42
+          },
+          {
+            "date": "2026-09-16",
+            "value": 1.2,
+            "close": 76206.01,
+            "ma": 63342.84
+          },
+          {
+            "date": "2026-09-17",
+            "value": 1.21,
+            "close": 76417.01,
+            "ma": 63381.88
+          },
+          {
+            "date": "2026-09-18",
+            "value": 1.28,
+            "close": 80883.87,
+            "ma": 63423.9
+          },
+          {
+            "date": "2026-09-19",
+            "value": 1.28,
+            "close": 81249.99,
+            "ma": 63466.62
+          },
+          {
+            "date": "2026-09-20",
+            "value": 1.28,
+            "close": 81178,
+            "ma": 63509.58
+          }
+        ]
+      },
+      "ahr999": {
+        "date": "2026-09-20",
+        "value": 0.53
+      }
+    },
+    "sentimentSource": {
+      "fearGreed": "alternative.me_fng",
+      "mayer": "binance_btcusdt",
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com",
+      "fetchedAt": "2026-10-02T11:04:00.979Z"
+    },
+    "fedRate": 3.75,
+    "bojRate": 1,
+    "macroSource": {
+      "fedRate": "FRED:DFEDTARL",
+      "bojRate": "macroRateSchedule:BOJ_POLICY_TIMELINE",
+      "fetchedAt": "2026-10-02T11:04:01.311Z",
+      "warnings": [
+        "该周含 FOMC 会议日，请 Agent 检索美联储声明确认 fedRate（脚本已用 FRED 周内值）",
+        "该周含 BOJ MPM 决策日，请 Agent 检索 boj.or.jp 确认 bojRate"
+      ]
+    },
+    "indicatorScores": {
+      "btcWeeklyChange": 0,
+      "btcFromATH": 1,
+      "fearGreedIndex": -1,
+      "mayerMultiple": -1,
+      "ahr999": 1,
+      "btcFourYearIndex": 2,
+      "fedRate": -1,
+      "bojRate": 1
+    },
+    "totalScore": 2,
+    "t0Must": null
+  },
+  "2026-W38": {
+    "weekId": "2026-W38",
+    "year": 2026,
+    "weekNumber": 38,
+    "weekStart": "2026-09-21",
+    "weekEnd": "2026-09-27",
+    "btcWeeklyChange": 8.44,
+    "btcWeeklyAvgPrice": 84457.41,
+    "ethWeeklyAvgPrice": 2704.36,
+    "fearGreedIndex": 72,
+    "mayerMultiple": 1.2,
+    "ahr999": 0.57,
+    "ethBtcRatio": 0.031932,
+    "btcFromATH": -33,
+    "btcFourYearIndex": 1.33,
+    "personalRating": 2,
+    "marketTrend": "bullish",
+    "updatedAt": "2026-10-02T11:15:05.087Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 84457.41,
+        "prices": [
+          81169.03511950027,
+          86596.74004249526,
+          86183.29442787907,
+          84382.39990356649,
+          84377.96508359577,
+          84075.71659039952,
+          84416.7149816521
+        ],
+        "dates": [
+          "2026-09-21",
+          "2026-09-22",
+          "2026-09-23",
+          "2026-09-24",
+          "2026-09-25",
+          "2026-09-26",
+          "2026-09-27"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2704.36,
+        "prices": [
+          2644.7349398187544,
+          2775.1686826711957,
+          2752.629093198004,
+          2684.342871490596,
+          2687.1259839506374,
+          2690.8886985219224,
+          2695.6048383919747
+        ],
+        "dates": [
+          "2026-09-21",
+          "2026-09-22",
+          "2026-09-23",
+          "2026-09-24",
+          "2026-09-25",
+          "2026-09-26",
+          "2026-09-27"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 84457.41,
+        "previousWeekId": "2026-W37",
+        "weeklyChange": 8.44
+      },
+      "ratioData": {
+        "calculationDate": "2026-09-27",
+        "ethBtcRatio": 0.031932
+      },
+      "fearGreed": {
+        "weeklyAverage": 72,
+        "daily": [
+          {
+            "date": "2026-09-21",
+            "value": 70
+          },
+          {
+            "date": "2026-09-22",
+            "value": 78
+          },
+          {
+            "date": "2026-09-23",
+            "value": 71
+          },
+          {
+            "date": "2026-09-24",
+            "value": 71
+          },
+          {
+            "date": "2026-09-25",
+            "value": 71
+          },
+          {
+            "date": "2026-09-26",
+            "value": 74
+          },
+          {
+            "date": "2026-09-27",
+            "value": 70
+          }
+        ]
+      },
+      "mayer": {
+        "weeklyAverage": 1.2,
+        "weekEndDate": "2026-09-27",
+        "weekEndValue": 1.19,
+        "daily": [
+          {
+            "date": "2026-09-21",
+            "value": 1.23,
+            "close": 86620,
+            "ma": 70618.67
+          },
+          {
+            "date": "2026-09-22",
+            "value": 1.22,
+            "close": 86208.56,
+            "ma": 70709.15
+          },
+          {
+            "date": "2026-09-23",
+            "value": 1.19,
+            "close": 84397.6,
+            "ma": 70794.82
+          },
+          {
+            "date": "2026-09-24",
+            "value": 1.19,
+            "close": 84410.24,
+            "ma": 70887.02
+          },
+          {
+            "date": "2026-09-25",
+            "value": 1.19,
+            "close": 84099.99,
+            "ma": 70965.35
+          },
+          {
+            "date": "2026-09-26",
+            "value": 1.19,
+            "close": 84433.1,
+            "ma": 71037.78
+          },
+          {
+            "date": "2026-09-27",
+            "value": 1.19,
+            "close": 84472,
+            "ma": 71109.18
+          }
+        ]
+      },
+      "btcFourYearIndex": {
+        "weeklyAverage": 1.33,
+        "weekEndDate": "2026-09-27",
+        "weekEndValue": 1.32,
+        "windowDays": 1460,
+        "daily": [
+          {
+            "date": "2026-09-21",
+            "value": 1.36,
+            "close": 86620,
+            "ma": 63555.62
+          },
+          {
+            "date": "2026-09-22",
+            "value": 1.36,
+            "close": 86208.56,
+            "ma": 63601.45
+          },
+          {
+            "date": "2026-09-23",
+            "value": 1.33,
+            "close": 84397.6,
+            "ma": 63646.3
+          },
+          {
+            "date": "2026-09-24",
+            "value": 1.33,
+            "close": 84410.24,
+            "ma": 63691.23
+          },
+          {
+            "date": "2026-09-25",
+            "value": 1.32,
+            "close": 84099.99,
+            "ma": 63735.67
+          },
+          {
+            "date": "2026-09-26",
+            "value": 1.32,
+            "close": 84433.1,
+            "ma": 63780.43
+          },
+          {
+            "date": "2026-09-27",
+            "value": 1.32,
+            "close": 84472,
+            "ma": 63824.99
+          }
+        ]
+      },
+      "ahr999": {
+        "date": "2026-09-27",
+        "value": 0.57
+      }
+    },
+    "sentimentSource": {
+      "fearGreed": "alternative.me_fng",
+      "mayer": "binance_btcusdt",
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com",
+      "fetchedAt": "2026-10-02T11:15:04.378Z"
+    },
+    "fedRate": 3.75,
+    "bojRate": 1,
+    "macroSource": {
+      "fedRate": "FRED:DFEDTARL",
+      "bojRate": "macroRateSchedule:BOJ_POLICY_TIMELINE",
+      "fetchedAt": "2026-10-02T11:15:05.035Z",
+      "warnings": []
+    },
+    "indicatorScores": {
+      "btcWeeklyChange": 0,
+      "btcFromATH": 1,
+      "fearGreedIndex": -1,
+      "mayerMultiple": -1,
+      "ahr999": 1,
+      "btcFourYearIndex": 2,
+      "fedRate": -1,
+      "bojRate": 1
+    },
+    "totalScore": 2,
     "t0Must": null
   }
 }
