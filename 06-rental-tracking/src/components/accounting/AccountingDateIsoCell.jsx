@@ -9,8 +9,9 @@ import {
   defaultPayRentIsoFromToday
 } from '../../utils/accountingDates';
 
+/** 与公式格 / ROOM 输入同一盒高，避免 button 默认行高把交租格撑高 */
 const baseCls =
-  'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'box-border h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-0 text-sm leading-5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 /**
  * ISO 日期格：
@@ -105,7 +106,7 @@ export function AccountingDateIsoCell({
         type="text"
         inputMode="text"
         size={1}
-        className={`min-h-[2.25rem] w-full min-w-0 max-w-full box-border border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100 bg-white text-left font-mono${mdCls}`}
+        className={`${baseCls} min-w-0 max-w-full bg-white text-left font-mono${mdCls}`}
         value={draftMd}
         placeholder="月/日"
         onChange={(e) => setDraftMd(e.target.value)}
@@ -166,7 +167,7 @@ export function AccountingDateIsoCell({
         }
       }}
       data-rent-nav={rentNavSlot}
-      className={`${baseCls} text-left bg-white hover:bg-gray-50${
+      className={`${baseCls} flex items-center text-left bg-white hover:bg-gray-50${
         variant === 'ymd' ? monthAccentCls : mdCls
       }`}
     >

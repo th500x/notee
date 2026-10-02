@@ -40,7 +40,7 @@ function sortableTransformIsActive(t) {
 
 /** 与公式格 / 日期格相同的可视高度与边框，保证各行「框体」一致 */
 const inputCls =
-  'w-full min-w-0 min-h-[2.25rem] box-border px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+  'w-full min-w-0 box-border h-[2.25rem] px-2 py-0 leading-5 border border-gray-200 rounded text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
 const narrowTextCls = `${inputCls} truncate cursor-help`;
 
@@ -259,7 +259,7 @@ function SortableRentRow({
             </td>
             <td className="p-1 border border-gray-100 bg-slate-50">
               <div
-                className="min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm text-right font-mono text-gray-800 cursor-help"
+                className="box-border h-[2.25rem] w-full min-w-[4rem] flex items-center justify-end border border-gray-200 rounded px-2 py-0 leading-5 text-sm text-right font-mono text-gray-800 cursor-help"
                 title={settleTitle}
               >
                 {formatAccountingNumber(settleVal)}
@@ -283,7 +283,7 @@ function SortableRentRow({
         className={`p-1 border border-gray-100 ${MIRROR_ROOM_COL_TD} bg-slate-50`}
         title="只读：与左侧房号同步"
       >
-        <div className="min-h-[2.25rem] w-full min-w-0 box-border px-2 py-1.5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
+        <div className="box-border h-[2.25rem] w-full min-w-0 flex items-center px-2 py-0 leading-5 border border-gray-200 rounded text-sm text-gray-800 truncate tabular-nums">
           {row.room ? String(row.room) : '—'}
         </div>
       </td>

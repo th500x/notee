@@ -27,7 +27,7 @@ export function AccountingFormulaCell({
   const displayText = formatAccountingNumber(displayEval);
 
   const baseCls =
-    'min-h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
+    'box-border h-[2.25rem] w-full min-w-[4rem] border border-gray-200 rounded px-2 py-0 text-sm leading-5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-100';
 
   if (editing) {
     return (
@@ -76,7 +76,7 @@ export function AccountingFormulaCell({
         }
       }}
       data-rent-nav={rentNavSlot}
-      className={`${baseCls} ${className} ${align === 'right' ? 'text-right' : 'text-left'} bg-white hover:bg-gray-50 text-gray-900 disabled:opacity-50`}
+      className={`${baseCls} flex items-center ${className} ${align === 'right' ? 'text-right' : 'text-left'} bg-white hover:bg-gray-50 text-gray-900 disabled:opacity-50`}
     >
       {displayText}
     </button>
