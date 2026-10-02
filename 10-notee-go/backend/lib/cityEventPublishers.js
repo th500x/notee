@@ -1,12 +1,13 @@
 /**
- * Who City Events are read from (notee-go docs/01-26-6 §5). `publishers.id` is the
+ * Who City Events are read from (notee-go docs/01-26-6 §7). `publishers.id` is the
  * `city_events.publisher` value; hand-entered rows use `manual`.
  *
  * `pages(getText, knownUrls, todayKey)` resolves to `{ url, text?, gone? }[]`: `text`
  * when a listing call already carried the page, `gone` when the publisher says it no
  * longer exists. `knownUrls` are pages that still hold stored rows, so a moved or
  * cancelled date is seen after the listing drops the page. `read(text)` turns one
- * page into raw items; `regionId` fills in when the page does not name the city.
+ * page into raw items; `regionId` and `place` fill in when the page does not name
+ * the city or the venue.
  * Network goes through the `getText` the service passes in; nothing here touches the DB.
  */
 
@@ -72,11 +73,12 @@ async function tatPages(getText, knownUrls, todayKey) {
 }
 
 /** Terminal 21 Pattaya and Rama 3 share one WordPress events archive. */
-function terminal21(id, branch, regionId) {
+function terminal21(id, branch, regionId, place) {
   const archiveUrl = `${T21}/${branch}/en/event/`;
   return {
     id,
     regionId,
+    place,
     venue: true,
     async pages(getText, knownUrls) {
       const listings = await Promise.all(
@@ -92,15 +94,17 @@ const CITY_EVENT_PUBLISHERS = [
   {
     id: TAT_PUBLISHER,
     regionId: null,
+    place: null,
     venue: false,
     pages: tatPages,
     read: readTatPost,
   },
-  terminal21('t21_pattaya', 'pattaya', 'pty'),
-  terminal21('t21_rama3', 'rama3', 'bkk'),
+  terminal21('t21_pattaya', 'pattaya', 'pty', 'Terminal 21 Pattaya'),
+  terminal21('t21_rama3', 'rama3', 'bkk', 'Terminal 21 Rama 3'),
   {
     id: 't21_asok',
     regionId: 'bkk',
+    place: 'Terminal 21 Asok',
     venue: true,
     async pages(getText, knownUrls) {
       const branchUrl = `${T21}/asok/`;
@@ -111,6 +115,7 @@ const CITY_EVENT_PUBLISHERS = [
   {
     id: 'siam_paragon',
     regionId: 'bkk',
+    place: 'Siam Paragon',
     venue: true,
     async pages() {
       return pagesFor([PARAGON_EVENTS]);
@@ -120,6 +125,7 @@ const CITY_EVENT_PUBLISHERS = [
   {
     id: 'one_bangkok',
     regionId: 'bkk',
+    place: 'One Bangkok',
     venue: true,
     async pages(getText, knownUrls, todayKey) {
       const since = dayKeyBefore(todayKey, ONE_BANGKOK_LOOKBACK_DAYS);

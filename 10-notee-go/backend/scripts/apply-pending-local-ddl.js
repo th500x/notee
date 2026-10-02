@@ -35,6 +35,7 @@ const MIGRATION_FILES = [
   '016-news.sql',
   '017-posts-utc-datetime.sql',
   '018-city-events.sql',
+  '019-city-events-place.sql',
 ];
 
 const DEFAULT_DB_NAME = '10_notee_go';

@@ -12,6 +12,7 @@ const {
   MANUAL_PUBLISHER,
   isDayKey,
   windowEndDayKey,
+  cleanPlace,
   eventKey,
   acceptEvent,
   pickDistinct,
@@ -25,21 +26,23 @@ function getText(url) {
   return fetchText(url, { userAgent: USER_AGENT, accept: ACCEPT });
 }
 
+/** API shape; `place` only when known, so the app shows no map button for it. */
 function rowToEvent(row) {
-  return {
+  const event = {
     regionId: row.region_id,
     title: row.title,
     startDayKey: row.start_day_key,
     endDayKey: row.end_day_key,
   };
+  return row.place ? { ...event, place: row.place } : event;
 }
 
-/** Raw items of one page as stored: accepted, city filled in, one per event key. */
+/** Raw items of one page as stored: accepted, city and venue filled in, one per event key. */
 function acceptItems(publisher, rawItems, todayKey) {
   const items = new Map();
   for (const raw of rawItems) {
     const item = acceptEvent(
-      { ...raw, regionId: raw.regionId || publisher.regionId },
+      { ...raw, regionId: raw.regionId || publisher.regionId, place: raw.place || publisher.place },
       { venue: publisher.venue, todayKey }
     );
     if (item) items.set(eventKey(item.regionId, item.title, item.startDayKey), item);
@@ -69,16 +72,17 @@ async function replacePage(publisherId, url, items) {
       const id = existing.get(key);
       if (id !== undefined) {
         existing.delete(key);
-        await conn.query(`UPDATE city_events SET title = ?, end_day_key = ? WHERE id = ?`, [
+        await conn.query(`UPDATE city_events SET title = ?, end_day_key = ?, place = ? WHERE id = ?`, [
           item.title,
           item.endDayKey,
+          item.place,
           id,
         ]);
       } else {
         await conn.query(
-          `INSERT INTO city_events (region_id, title, start_day_key, end_day_key, publisher, url)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [item.regionId, item.title, item.startDayKey, item.endDayKey, publisherId, url]
+          `INSERT INTO city_events (region_id, title, start_day_key, end_day_key, place, publisher, url)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [item.regionId, item.title, item.startDayKey, item.endDayKey, item.place, publisherId, url]
         );
         added += 1;
       }
@@ -162,7 +166,7 @@ async function collectCityEvents(now = new Date()) {
 async function listCityEvents(now = new Date()) {
   const todayKey = dayKeyFromDate(now);
   const rows = await query(
-    `SELECT region_id, title, start_day_key, end_day_key, publisher
+    `SELECT region_id, title, start_day_key, end_day_key, place, publisher
      FROM city_events
      WHERE hidden_at IS NULL AND end_day_key >= ? AND start_day_key <= ?`,
     [todayKey, windowEndDayKey(todayKey)]
@@ -171,21 +175,27 @@ async function listCityEvents(now = new Date()) {
   return { items: items.map(({ publisher, ...item }) => item) };
 }
 
-/** Hand-entered event. Same rules as a mall-free publisher: no alcohol, English, not ended. */
-async function addCityEvent({ regionId, title, startDayKey, endDayKey }, now = new Date()) {
+/**
+ * Hand-entered event. Same rules as a mall-free publisher: no alcohol, English, not ended.
+ * The venue is required so the row always has a map button.
+ */
+async function addCityEvent({ regionId, title, startDayKey, endDayKey, place }, now = new Date()) {
   assertRegionId(regionId);
   if (!isDayKey(startDayKey) || !isDayKey(endDayKey)) {
     throw httpError(400, 'start / end 须为 YYYY-MM-DD', 'CITY_EVENT_BAD_DAY');
   }
+  if (!cleanPlace(place)) {
+    throw httpError(400, 'place 须为 1–160 字的地点', 'CITY_EVENT_BAD_PLACE');
+  }
   const item = acceptEvent(
-    { regionId, title, startDayKey, endDayKey },
+    { regionId, title, startDayKey, endDayKey, place },
     { venue: false, todayKey: dayKeyFromDate(now) }
   );
   if (!item) throw httpError(400, '名称或日期不合收录规则', 'CITY_EVENT_REJECTED');
   const result = await query(
-    `INSERT INTO city_events (region_id, title, start_day_key, end_day_key, publisher)
-     VALUES (?, ?, ?, ?, ?)`,
-    [item.regionId, item.title, item.startDayKey, item.endDayKey, MANUAL_PUBLISHER]
+    `INSERT INTO city_events (region_id, title, start_day_key, end_day_key, place, publisher)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [item.regionId, item.title, item.startDayKey, item.endDayKey, item.place, MANUAL_PUBLISHER]
   );
   return { id: result.insertId, ...item };
 }
@@ -211,7 +221,7 @@ async function deleteManualCityEvent(id) {
 /** Every stored row for the moderator script, hidden ones included. */
 async function listStoredCityEvents() {
   const rows = await query(
-    `SELECT id, region_id, title, start_day_key, end_day_key, publisher, url, hidden_at IS NOT NULL AS hidden
+    `SELECT id, region_id, title, start_day_key, end_day_key, place, publisher, url, hidden_at IS NOT NULL AS hidden
      FROM city_events
      ORDER BY region_id, start_day_key, title`
   );

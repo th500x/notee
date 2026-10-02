@@ -2,7 +2,7 @@
  * City Events by hand. Not a public API.
  * Usage:
  *   node scripts/city-events.js list
- *   node scripts/city-events.js add --region pty --title "Pattaya International Fireworks Festival 2026" --start 2026-11-27 --end 2026-11-28
+ *   node scripts/city-events.js add --region pty --title "Pattaya International Fireworks Festival 2026" --start 2026-11-27 --end 2026-11-28 --place "Pattaya Beach, Pattaya"
  *   node scripts/city-events.js hide --id 12
  *   node scripts/city-events.js unhide --id 12
  *   node scripts/city-events.js delete --id 12     # hand-entered rows only
@@ -17,7 +17,7 @@ const {
 } = require('../services/cityEventService');
 
 const USAGE =
-  'Usage: node scripts/city-events.js list | add --region bkk|pty --title "…" --start YYYY-MM-DD [--end YYYY-MM-DD] | hide|unhide|delete --id <id>';
+  'Usage: node scripts/city-events.js list | add --region bkk|pty --title "…" --start YYYY-MM-DD [--end YYYY-MM-DD] --place "…" | hide|unhide|delete --id <id>';
 
 function option(args, name) {
   const i = args.indexOf(`--${name}`);
@@ -36,7 +36,7 @@ async function run(command, args) {
       for (const row of await listStoredCityEvents()) {
         const days = row.startDayKey === row.endDayKey ? row.startDayKey : `${row.startDayKey}..${row.endDayKey}`;
         console.log(
-          `${row.id}\t${row.regionId}\t${days}\t${row.hidden ? 'HIDDEN\t' : ''}${row.title}\t${row.publisher}`
+          `${row.id}\t${row.regionId}\t${days}\t${row.hidden ? 'HIDDEN\t' : ''}${row.title}\t@ ${row.place || '-'}\t${row.publisher}`
         );
       }
       return;
@@ -48,6 +48,7 @@ async function run(command, args) {
         title: option(args, 'title'),
         startDayKey,
         endDayKey: option(args, 'end') || startDayKey,
+        place: option(args, 'place'),
       });
       console.log(JSON.stringify({ ok: true, ...created }));
       return;

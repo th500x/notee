@@ -10,6 +10,7 @@ const {
   parseDayRange,
   windowEndDayKey,
   cleanTitle,
+  cleanPlace,
   titleKey,
   acceptEvent,
   pickDistinct,
@@ -32,6 +33,10 @@ assert.deepStrictEqual(CITY_EVENT_REGION_IDS, ['bkk', 'pty']);
 assert.deepStrictEqual(
   CITY_EVENT_PUBLISHERS.map((p) => p.id),
   ['tat', 't21_pattaya', 't21_rama3', 't21_asok', 'siam_paragon', 'one_bangkok']
+);
+assert.deepStrictEqual(
+  CITY_EVENT_PUBLISHERS.map((p) => p.place),
+  [null, 'Terminal 21 Pattaya', 'Terminal 21 Rama 3', 'Terminal 21 Asok', 'Siam Paragon', 'One Bangkok']
 );
 
 // Date lines as the publishers write them.
@@ -68,6 +73,9 @@ assert.strictEqual(cleanTitle('With Love Concert'), 'With Love Concert');
 assert.strictEqual(cleanTitle('Chang Chui Night Market'), 'Chang Chui Night Market');
 assert.strictEqual(cleanTitle('\u0e07\u0e32\u0e19\u0e27\u0e31\u0e14 Fair'), '');
 assert.strictEqual(titleKey('The American Fair 2026'), titleKey('american fair'));
+assert.strictEqual(cleanPlace('  Terminal 21 \n Pattaya '), 'Terminal 21 Pattaya');
+assert.strictEqual(cleanPlace('x'.repeat(161)), '');
+assert.strictEqual(cleanPlace(undefined), '');
 
 const today = '2026-10-02';
 const event = (title, startDayKey, endDayKey, extra = {}) => ({
@@ -78,8 +86,15 @@ const event = (title, startDayKey, endDayKey, extra = {}) => ({
   ...extra,
 });
 assert.deepStrictEqual(
-  acceptEvent(event('Food Fun Fest', '2026-10-01', '2026-10-05'), { venue: true, todayKey: today }),
-  event('Food Fun Fest', '2026-10-01', '2026-10-05')
+  acceptEvent(event('Food Fun Fest', '2026-10-01', '2026-10-05', { place: ' Terminal 21  Pattaya' }), {
+    venue: true,
+    todayKey: today,
+  }),
+  event('Food Fun Fest', '2026-10-01', '2026-10-05', { place: 'Terminal 21 Pattaya' })
+);
+assert.strictEqual(
+  acceptEvent(event('Food Fun Fest', '2026-10-01', '2026-10-05'), { venue: true, todayKey: today }).place,
+  ''
 );
 for (const [title, start, end] of [
   ['Fashion Brand Sale', '2026-10-01', '2026-10-05'],
@@ -137,8 +152,18 @@ const tat = `<p class="wp-block-paragraph">October continues to bring … Highli
 <p class="wp-block-paragraph"><strong>Highlights:</strong><br>Live music on the beach.</p>
 <h2>Northern Region</h2>`;
 assert.deepStrictEqual(readTatPost(tat), [
-  { regionId: 'bkk', title: 'American Fair', ...range('2026-10-23', '2026-10-25') },
-  { regionId: 'pty', title: 'Pattaya International Music Festival', ...range('2026-10-09', '2026-10-18') },
+  {
+    regionId: 'bkk',
+    title: 'American Fair',
+    ...range('2026-10-23', '2026-10-25'),
+    place: 'Parc Paragon & SCBX NEXT TECH, Siam Paragon, Bangkok',
+  },
+  {
+    regionId: 'pty',
+    title: 'Pattaya International Music Festival',
+    ...range('2026-10-09', '2026-10-18'),
+    place: 'Beach Road, Pattaya, Chon Buri',
+  },
 ]);
 
 // Terminal 21 Pattaya / Rama 3 (WordPress).
@@ -191,7 +216,7 @@ const oneBangkokPage = `<h3 class="titleText"> Fortune Teller by Julie Stephen C
 <div class="detail"> <p> <i class="icon-ic-calendar"></i> 02 Oct - 15 Nov 2026</p>
 <a> <p> <i class="icon-ic-location"></i> One Bangkok </p> </a> </div>`;
 assert.deepStrictEqual(readOneBangkokEvent(oneBangkokPage), [
-  { title: 'Fortune Teller by Julie Stephen Chheng', ...range('2026-10-02', '2026-11-15') },
+  { title: 'Fortune Teller by Julie Stephen Chheng', ...range('2026-10-02', '2026-11-15'), place: 'One Bangkok' },
 ]);
 
 // Siam Paragon (Next.js flight strings; UTC instants read as Bangkok days).

@@ -1,8 +1,8 @@
 /**
- * Page readers for City Events (notee-go docs/01-26-6 §5). Pure: page text in, raw
+ * Page readers for City Events (notee-go docs/01-26-6 §7). Pure: page text in, raw
  * items or links out. A raw item is `{ title, startDayKey, endDayKey }`, plus `regionId`
- * when the page itself names the city (TAT); `cityEventRules.acceptEvent` decides
- * what is stored.
+ * when the page itself names the city (TAT) and `place` when it names the venue;
+ * `cityEventRules.acceptEvent` decides what is stored.
  */
 
 const { htmlToText } = require('./htmlText');
@@ -63,7 +63,7 @@ function readTatPost(html) {
     let session = null;
     const flush = () => {
       const regionId = session && tatRegion(session.place);
-      if (regionId) items.push({ regionId, title, ...session.range });
+      if (regionId) items.push({ regionId, title, ...session.range, place: session.place.join(', ') });
       session = null;
     };
     for (const paragraph of section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)) {
@@ -126,11 +126,15 @@ function oneBangkokEventLinks(xml, sinceDayKey) {
   );
 }
 
-/** One Bangkok event page: `<h3 class="titleText">` and the calendar-icon line (`05 - 07 Oct 2026`). */
+/**
+ * One Bangkok event page: `<h3 class="titleText">`, the calendar-icon line (`05 - 07 Oct 2026`)
+ * and the location-icon line (`One Bangkok Forum`).
+ */
 function readOneBangkokEvent(html) {
   const title = firstText(html, /<h3 class="titleText">([\s\S]*?)<\/h3>/i);
   const range = parseDayRange(firstText(html, /icon-ic-calendar[^>]*><\/i>([\s\S]*?)<\/p>/i));
-  return title && range ? [{ title, ...range }] : [];
+  const place = firstText(html, /icon-ic-location[^>]*><\/i>([\s\S]*?)<\/p>/i);
+  return title && range ? [{ title, ...range, place }] : [];
 }
 
 /**

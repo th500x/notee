@@ -8,6 +8,8 @@ const { httpError } = require('./httpError');
 /** Table page shows Bangkok, scan page Pattaya. Same ids as News Notes. */
 const CITY_EVENT_REGION_IDS = ['bkk', 'pty'];
 const TITLE_MAX = 160;
+/** Venue text the app hands to Google Maps as a search query. */
+const PLACE_MAX = 160;
 /** This month plus the next 11, to the last day of the 12th. */
 const WINDOW_MONTHS = 12;
 /** A mall listing longer than this is a standing promo or exhibition hall, not a date. */
@@ -135,6 +137,12 @@ function cleanTitle(raw) {
   return title && Array.from(title).length <= TITLE_MAX ? title : '';
 }
 
+/** Map search text, or '' when there is none or it is too long to be one place. */
+function cleanPlace(raw) {
+  const place = String(raw || '').replace(/\s+/g, ' ').trim();
+  return Array.from(place).length <= PLACE_MAX ? place : '';
+}
+
 /** Case, punctuation, a leading "The" and the year do not make another event. */
 function titleKey(title) {
   return String(title)
@@ -150,8 +158,8 @@ function eventKey(regionId, title, startDayKey) {
 
 /**
  * One raw item as stored, or null. `venue` publishers (malls) also drop sales,
- * classes and month-long listings. Ended events are not stored.
- * @param {{ regionId: string, title: string, startDayKey: string, endDayKey: string }} raw
+ * classes and month-long listings. Ended events are not stored. `place` is '' when unknown.
+ * @param {{ regionId: string, title: string, startDayKey: string, endDayKey: string, place?: string }} raw
  * @param {{ venue: boolean, todayKey: string }} options
  */
 function acceptEvent(raw, { venue, todayKey }) {
@@ -168,6 +176,7 @@ function acceptEvent(raw, { venue, todayKey }) {
     title,
     startDayKey: raw.startDayKey,
     endDayKey: raw.endDayKey,
+    place: cleanPlace(raw.place),
   };
 }
 
@@ -220,6 +229,7 @@ module.exports = {
   parseDayRange,
   windowEndDayKey,
   cleanTitle,
+  cleanPlace,
   titleKey,
   eventKey,
   acceptEvent,

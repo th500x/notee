@@ -1,6 +1,6 @@
 /**
- * City Events: read the official pages once a day at 06:15 Asia/Bangkok; also once
- * shortly after boot, after the news run has started.
+ * City Events: read the official pages once a day at 00:10 Asia/Bangkok, between the
+ * news run (00:05) and daily maintenance (00:15); also once shortly after boot.
  */
 
 const cron = require('node-cron');
@@ -42,13 +42,13 @@ async function runCityEventCollection(reason = 'manual') {
 
 function startCityEventCollectionJobs() {
   cron.schedule(
-    '15 6 * * *',
+    '10 0 * * *',
     () => {
       runCityEventCollection('cron');
     },
     { timezone: 'Asia/Bangkok' }
   );
-  console.log('[notee-go/jobs] scheduled city events daily at 06:15 Asia/Bangkok');
+  console.log('[notee-go/jobs] scheduled city events daily at 00:10 Asia/Bangkok');
 
   setTimeout(() => {
     runCityEventCollection('startup');
