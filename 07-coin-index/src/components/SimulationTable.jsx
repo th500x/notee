@@ -80,11 +80,14 @@ function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClos
             开仓与以往相同：个人评级达到看多/看空阈值当周按 ETH 周均价开仓（同向信号可叠仓）。
           </li>
           <li>
-            平仓改为<strong>止盈 ${TRADING_SIGNALS.TAKE_PROFIT_USD}</strong>
+            平仓为止盈 ${TRADING_SIGNALS.TAKE_PROFIT_USD}
             ：价差朝盈利方向达到 ${TRADING_SIGNALS.TAKE_PROFIT_USD}
-            （按后续周的 ETH 周均价）即结算；<strong>不再</strong>因出现反向评级信号而平仓。
+            （按后续周的 ETH 周均价，<strong>可跨年</strong>）即结算；<strong>不再</strong>因出现反向评级信号而平仓。
           </li>
-          <li>年内未触及止盈的仓位保持待结算（TBD）。价格口径为 ethWeeklyAvgPrice，利润单位 USD/ETH。</li>
+          <li>
+            截至已有数据仍未触及止盈的仓位保持待结算（TBD）。价格口径为 ethWeeklyAvgPrice，利润单位
+            USD/ETH。
+          </li>
         </ul>
       </div>
 

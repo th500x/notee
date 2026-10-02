@@ -3,18 +3,22 @@
  *
  * 开仓：个人评级 ≥ BUY_THRESHOLD → BUY；≤ SELL_THRESHOLD → SELL（每次信号一仓，可同向叠仓）
  * 平仓：止盈方向价差 ≥ TAKE_PROFIT_USD（按周 ethWeeklyAvgPrice）；不因反向信号结算
+ * 展示：只列出 selectedYear 开的仓；平仓可看后续年份的周数据（跨年止盈）
  */
 import { TRADING_SIGNALS } from '../constants'
 
 /**
- * @param {Record<string, object>} weeklyData 全量或当年周数据
+ * @param {Record<string, object>} weeklyData 全量周数据（须含后续年，否则无法跨年止盈）
  * @param {number} selectedYear
  * @returns {Array<object>}
  */
 export function generateSimulationTrades(weeklyData, selectedYear) {
   const takeProfitUsd = TRADING_SIGNALS.TAKE_PROFIT_USD
+  const yearPrefix = `${selectedYear}-W`
+
+  // 全量按周序遍历，才能用下一年价格平上一年的仓
   const weeks = Object.keys(weeklyData)
-    .filter((key) => key.startsWith(`${selectedYear}-W`))
+    .filter((key) => /^\d{4}-W\d{2}$/.test(key))
     .sort()
 
   const results = []
@@ -30,7 +34,7 @@ export function generateSimulationTrades(weeklyData, selectedYear) {
     const ethPrice = weekData.ethWeeklyAvgPrice
     if (rating === undefined || rating === null || !ethPrice) continue
 
-    // 先按本周价格检查已开仓是否触及止盈
+    // 先按本周价格检查已开仓是否触及止盈（含跨年）
     for (let p = openPositions.length - 1; p >= 0; p--) {
       const pos = openPositions[p]
       const pnl =
@@ -47,6 +51,9 @@ export function generateSimulationTrades(weeklyData, selectedYear) {
       }
       openPositions.splice(p, 1)
     }
+
+    // 只在选中年开新仓；后续年只用来给上年未平仓止盈
+    if (!weekId.startsWith(yearPrefix)) continue
 
     const isBuySignal = rating >= TRADING_SIGNALS.BUY_THRESHOLD
     const isSellSignal = rating <= TRADING_SIGNALS.SELL_THRESHOLD
