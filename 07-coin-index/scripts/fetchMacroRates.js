@@ -32,14 +32,17 @@ async function main() {
 
   console.log(`\n=== 宏观利率 · ${week.id} (${weekStart} – ${weekEnd}) ===\n`)
 
-  const { fedRate, bojRate, sources, warnings } = await fetchMacroRatesForWeek(
+  const { fedRate, bojRate, sources, asOf, bojCheck, provisional } = await fetchMacroRatesForWeek(
     week.startDate,
     week.endDate,
   )
 
-  console.log(`美联储 fedRate: ${fedRate}% (${sources.fedRate})`)
-  console.log(`日央行 bojRate: ${bojRate}% (${sources.bojRate})`)
-  for (const w of warnings) console.log(`⚠️  ${w}`)
+  console.log(`美联储 fedRate: ${fedRate}% (${sources.fedRate}，数据截至 ${asOf.fedRate})`)
+  console.log(`日央行 bojRate: ${bojRate}% (${sources.bojRate}，数据截至 ${asOf.bojRate})`)
+  console.log(`   核对: ${bojCheck.date} 隔夜拆借利率 ${bojCheck['FM01/STRDCLUCON']}%`)
+  if (provisional) {
+    console.log('⏳ 官方数据还没发布到周结束日，本次为暂定值；collect-missing 下次运行会重取')
+  }
 
   if (dryRun) {
     console.log('\n🏁 --dry-run：未写入文件')
@@ -64,13 +67,15 @@ async function main() {
     updatedAt: new Date().toISOString(),
     macroSource: {
       ...sources,
+      asOf,
+      bojCheck,
+      provisional,
       fetchedAt: new Date().toISOString(),
-      warnings,
     },
   }
 
   saveWeeklyData(data)
-  console.log(`\n✅ 已写入 ${week.id}: fedRate=${fedRate}, bojRate=${bojRate}`)
+  console.log(`\n✅ 已写入 ${week.id}: fedRate=${fedRate}, bojRate=${bojRate}${provisional ? '（暂定）' : ''}`)
   console.log('💡 请运行: npm run recalc-ratings')
 }
 

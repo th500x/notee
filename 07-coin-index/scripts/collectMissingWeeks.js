@@ -1,5 +1,6 @@
 /**
- * 补采所有已结束、但没有记录或指标不全的周（含上一完整周），按时间先后逐周跑 collect-week。
+ * 补采所有已结束、但没有记录或指标不全的周（含上一完整周），按时间先后逐周跑 collect-week；
+ * 利率为暂定值（官方数据当时没发布到周结束日）的周，只重取利率并重算评级。
  * 曼谷机每周一 UTC 00:05 由 systemd 定时器经 scripts/weekly-auto-collect.sh 调用。
  *
  * node scripts/collectMissingWeeks.js [--dry-run]
@@ -17,6 +18,7 @@ import { delay } from './lib/apiDelay.js'
 
 const BETWEEN_WEEKS_DELAY = 90000
 const DAY_MS = 86400000
+const PROVISIONAL_MAX_DAYS = 14
 
 const REQUIRED_FIELDS = [
   'btcWeeklyAvgPrice',
@@ -40,7 +42,11 @@ function weekIsIncomplete(record, week) {
   return REQUIRED_FIELDS.some((field) => typeof record[field] !== 'number')
 }
 
-function findWeeksToCollect(data, referenceDate = new Date()) {
+function macroIsProvisional(record) {
+  return record?.macroSource?.provisional === true
+}
+
+function planWeeks(data, referenceDate = new Date()) {
   const last = getLastCompletedWeek(referenceDate)
   if (!last) throw new Error('未找到已结束的完整周')
 
@@ -53,42 +59,83 @@ function findWeeksToCollect(data, referenceDate = new Date()) {
     )
   }
 
-  return getAllConfiguredWeeks()
-    .filter((week) => week.endDate <= last.endDate)
-    .filter((week) => weekIsIncomplete(data[week.id], week))
+  const ended = getAllConfiguredWeeks().filter((week) => week.endDate <= last.endDate)
+  const collect = ended.filter((week) => weekIsIncomplete(data[week.id], week))
+  const refreshMacro = ended.filter(
+    (week) => !collect.includes(week) && macroIsProvisional(data[week.id]),
+  )
+  return { collect, refreshMacro }
 }
 
-async function main() {
-  const dryRun = process.argv.includes('--dry-run')
-  const weeks = findWeeksToCollect(loadWeeklyData())
+function runScript(args) {
+  const result = spawnSync(process.execPath, args, { cwd: projectRoot, stdio: 'inherit' })
+  return result.status
+}
 
-  if (weeks.length === 0) {
-    console.log('✅ 已结束的周都有完整数据，无需采集')
-    return
+function refreshProvisionalMacro(weeks) {
+  for (const week of weeks) {
+    console.log(`\n${'#'.repeat(60)}\n# ${week.id} 重取利率\n${'#'.repeat(60)}`)
+    const status = runScript(['scripts/fetchMacroRates.js', `--week=${week.id}`])
+    if (status !== 0) throw new Error(`${week.id} 重取利率失败 (exit ${status})`)
   }
+  const status = runScript(['scripts/recalculateRatings.js'])
+  if (status !== 0) throw new Error(`重算 personalRating 失败 (exit ${status})`)
+}
 
-  console.log(`📋 待采集 ${weeks.length} 周: ${weeks.map((w) => w.id).join(', ')}`)
-  if (dryRun) {
-    console.log('🏁 --dry-run：不采集')
-    return
-  }
-
+async function collectWeeks(weeks) {
   for (const [index, week] of weeks.entries()) {
     if (index > 0) {
       console.log(`\n⏸️  周间冷却 ${BETWEEN_WEEKS_DELAY / 1000}s…`)
       await delay(BETWEEN_WEEKS_DELAY)
     }
     console.log(`\n${'#'.repeat(60)}\n# ${week.id}\n${'#'.repeat(60)}`)
-    const result = spawnSync(process.execPath, ['scripts/collectWeek.js', `--week=${week.id}`], {
-      cwd: projectRoot,
-      stdio: 'inherit',
-    })
-    if (result.status !== 0) {
-      throw new Error(`${week.id} 采集失败 (exit ${result.status})，后面的周未采集`)
+    const status = runScript(['scripts/collectWeek.js', `--week=${week.id}`])
+    if (status !== 0) {
+      throw new Error(`${week.id} 采集失败 (exit ${status})，后面的周未采集`)
     }
   }
+}
 
-  console.log(`\n✅ 采集完成: ${weeks.map((w) => w.id).join(', ')}`)
+function assertNoStaleProvisional() {
+  const data = loadWeeklyData()
+  const stale = getAllConfiguredWeeks().filter(
+    (week) =>
+      macroIsProvisional(data[week.id]) &&
+      Date.now() - week.endDate.getTime() > PROVISIONAL_MAX_DAYS * DAY_MS,
+  )
+  if (stale.length > 0) {
+    throw new Error(
+      `${stale.map((w) => w.id).join(', ')} 结束超过 ${PROVISIONAL_MAX_DAYS} 天，` +
+        '官方利率数据仍未发布到周结束日，请检查 FRED / 日本央行数据源',
+    )
+  }
+}
+
+async function main() {
+  const dryRun = process.argv.includes('--dry-run')
+  const { collect, refreshMacro } = planWeeks(loadWeeklyData())
+
+  if (collect.length === 0 && refreshMacro.length === 0) {
+    console.log('✅ 已结束的周都有完整数据、利率均已定稿，无需采集')
+    return
+  }
+
+  if (refreshMacro.length > 0) {
+    console.log(`📋 利率暂定、待重取 ${refreshMacro.length} 周: ${refreshMacro.map((w) => w.id).join(', ')}`)
+  }
+  if (collect.length > 0) {
+    console.log(`📋 待采集 ${collect.length} 周: ${collect.map((w) => w.id).join(', ')}`)
+  }
+  if (dryRun) {
+    console.log('🏁 --dry-run：不采集')
+    return
+  }
+
+  if (refreshMacro.length > 0) refreshProvisionalMacro(refreshMacro)
+  await collectWeeks(collect)
+  assertNoStaleProvisional()
+
+  console.log('\n✅ 采集完成')
 }
 
 main().catch((err) => {
