@@ -1,5 +1,6 @@
 /**
- * Daily: purge expired posts + freeze previous UTC+7 month board.
+ * Daily: freeze previous UTC+7 month board, then soft-delete expired posts.
+ * Freeze first so day-1-of-month TTL soft-deletes cannot empty the snapshot.
  */
 
 const cron = require('node-cron');
@@ -9,6 +10,14 @@ const { purgeIdleSilentAccounts } = require('../services/userService');
 
 async function runDailyMaintenance(reason = 'manual') {
   console.log(`[notee-go/jobs] daily start (${reason})`);
+  try {
+    const board = await freezePreviousMonthIfNeeded();
+    console.log(
+      `[notee-go/jobs] board month=${board.monthKey} count=${board.count} newlyFrozen=${board.frozen}`
+    );
+  } catch (err) {
+    console.error('[notee-go/jobs] board freeze failed:', err.message);
+  }
   try {
     const ttl = await purgeExpiredPosts();
     console.log(`[notee-go/jobs] ttl purged=${ttl.purged}`);
@@ -20,14 +29,6 @@ async function runDailyMaintenance(reason = 'manual') {
     console.log(`[notee-go/jobs] silent idle purged=${silent.purged}`);
   } catch (err) {
     console.error('[notee-go/jobs] silent idle failed:', err.message);
-  }
-  try {
-    const board = await freezePreviousMonthIfNeeded();
-    console.log(
-      `[notee-go/jobs] board month=${board.monthKey} count=${board.count} newlyFrozen=${board.frozen}`
-    );
-  } catch (err) {
-    console.error('[notee-go/jobs] board freeze failed:', err.message);
   }
 }
 

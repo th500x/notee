@@ -34,13 +34,12 @@ async function main() {
     `SELECT deleted_at IS NOT NULL AS gone FROM posts WHERE id = ?`,
     [postId]
   );
-  // expired post was soft-deleted — revive for board ranking (board selects non-deleted)
-  await query(`UPDATE posts SET deleted_at = NULL WHERE id = ?`, [postId]);
 
   // clear any prior freeze for prev month from earlier smokes
   await query(`DELETE FROM monthly_board WHERE month_key = ?`, [prev]);
   await query(`DELETE FROM monthly_board_meta WHERE month_key = ?`, [prev]);
 
+  // Soft-deleted posts still enter the closed-month snapshot (TTL must not empty the board).
   const frozen = await freezeMonth(prev);
   const board = await getBoard(prev);
   const live = await getBoard(monthKeyFromDate());

@@ -36,10 +36,13 @@ function rowToBoardItem(row) {
 
 /**
  * Candidate posts for a UTC+7 month (day_key prefix).
- * Excludes user-deleted / mod-hidden; Private flag still ranks (display Private).
+ * Live board skips soft-deleted rows. Freezing a closed month keeps TTL soft-deletes
+ * (snapshot text lives on monthly_board; Feed expiry must not empty the board).
+ * Mod-hidden rows never rank. Private flag still ranks (display Private).
  */
-async function selectTopPostsForMonth(monthKey, limit = BOARD_SIZE) {
+async function selectTopPostsForMonth(monthKey, limit = BOARD_SIZE, { forFreeze = false } = {}) {
   const dayPrefix = `${monthKey}-%`;
+  const deletedClause = forFreeze ? '' : 'AND p.deleted_at IS NULL';
   return query(
     `SELECT p.id AS post_id, p.user_id, p.body, p.flag_id, p.stamp_id,
             p.resonance_count, ${sqlIsoUtc('p.created_at', 'posted_at_iso')},
@@ -47,7 +50,7 @@ async function selectTopPostsForMonth(monthKey, limit = BOARD_SIZE) {
      FROM posts p
      INNER JOIN users u ON u.id = p.user_id AND u.status = 'active' AND u.deleted_at IS NULL
      WHERE p.day_key LIKE ?
-       AND p.deleted_at IS NULL
+       ${deletedClause}
        AND p.hidden_at IS NULL
      ORDER BY p.resonance_count DESC, p.created_at ASC, p.id ASC
      LIMIT ?`,
@@ -87,18 +90,27 @@ async function freezeMonth(monthKeyRaw) {
   }
 
   const already = await isMonthFrozen(monthKey);
-  if (already) {
-    return { monthKey, count: Number(already.item_count) || 0, frozen: false };
+  const alreadyCount = already ? Number(already.item_count) || 0 : null;
+  // An empty freeze (e.g. TTL purged before snapshot) may be refilled once posts remain.
+  if (already && alreadyCount > 0) {
+    return { monthKey, count: alreadyCount, frozen: false };
   }
 
-  const tops = await selectTopPostsForMonth(monthKey, BOARD_SIZE);
+  const tops = await selectTopPostsForMonth(monthKey, BOARD_SIZE, { forFreeze: true });
+  if (already && alreadyCount === 0 && tops.length === 0) {
+    return { monthKey, count: 0, frozen: false };
+  }
 
   await transaction(async (conn) => {
     const [metaRows] = await conn.execute(
       `SELECT item_count FROM monthly_board_meta WHERE month_key = ? LIMIT 1`,
       [monthKey]
     );
-    if (metaRows[0]) return;
+    if (metaRows[0] && Number(metaRows[0].item_count) > 0) return;
+    if (metaRows[0]) {
+      await conn.execute(`DELETE FROM monthly_board WHERE month_key = ?`, [monthKey]);
+      await conn.execute(`DELETE FROM monthly_board_meta WHERE month_key = ?`, [monthKey]);
+    }
 
     let rank = 1;
     for (const row of tops) {
