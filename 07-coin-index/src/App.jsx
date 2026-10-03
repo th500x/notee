@@ -11,6 +11,7 @@ import { useCurrentWeek } from './hooks/useCurrentWeek'
 import { useLifeResumeAuth } from './hooks/useLifeResumeAuth'
 import { YEAR_RANGE } from './constants'
 import { computeT0MustMap } from './utils/t0Must'
+import { computeT1RecommendMap } from './utils/t1Recommend'
 
 function App() {
   // 使用自定义Hooks管理数据
@@ -29,6 +30,10 @@ function App() {
   const weeklyData = useYearlyData(allWeeklyData, currentYear)
   const selectedWeekData = useSelectedWeekData(allWeeklyData, selectedWeek)
   const t0MustByWeek = useMemo(() => computeT0MustMap(allWeeklyData), [allWeeklyData])
+  const t1RecommendByWeek = useMemo(
+    () => computeT1RecommendMap(allWeeklyData),
+    [allWeeklyData],
+  )
 
   // 年份范围
   const minYear = YEAR_RANGE.MIN
@@ -119,6 +124,7 @@ function App() {
                 minYear={minYear}
                 maxYear={maxYear}
                 t0MustByWeek={t0MustByWeek}
+                t1RecommendByWeek={t1RecommendByWeek}
               />
             </div>
           </div>
@@ -130,6 +136,7 @@ function App() {
                 selectedWeek={selectedWeek}
                 weeklyData={selectedWeekData}
                 t0Must={selectedWeek ? t0MustByWeek[selectedWeek] : null}
+                t1Recommend={selectedWeek ? t1RecommendByWeek[selectedWeek] : null}
               />
             </div>
             <WalletAssetsPanel auth={auth} />

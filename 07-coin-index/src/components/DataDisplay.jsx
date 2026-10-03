@@ -1,7 +1,7 @@
 // DataDisplay 组件 - 更新版本 v3.0
 import { getRatingTextClass, getRatingLabel } from '../utils/ratingColors'
 
-function DataDisplay({ selectedWeek, weeklyData, t0Must = null }) {
+function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = null }) {
   
   // 格式化周ID显示
   const formatWeekDisplay = (weekId) => {
@@ -403,14 +403,29 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null }) {
               <div
                 className={`week-t0-must week-t0-must--${t0Must === 'buy' ? 'extreme-bullish' : 'extreme-bearish'}`}
                 style={{ position: 'static' }}
-                title={t0Must === 'buy' ? 'T0 必买' : 'T0 必卖'}
               >
                 必
               </div>
             )}
+            {!t0Must && t1Recommend && (
+              <div
+                className={`week-t0-must week-t0-must--${t1Recommend === 'buy' ? 'bullish' : 'bearish'}`}
+                style={{ position: 'static' }}
+              >
+                荐
+              </div>
+            )}
           </div>
           <div className={`text-xs mt-1 font-medium ${getRatingTextClass(calculateTotalRating())}`}>
-            {t0Must === 'buy' ? '极度看多 · 必买' : t0Must === 'sell' ? '极度看空 · 必卖' : getRatingLabel(calculateTotalRating())}
+            {t0Must === 'buy'
+              ? '极度看多 · 必买'
+              : t0Must === 'sell'
+                ? '极度看空 · 必卖'
+                : t1Recommend === 'buy'
+                  ? `${getRatingLabel(calculateTotalRating())} · 荐买`
+                  : t1Recommend === 'sell'
+                    ? `${getRatingLabel(calculateTotalRating())} · 荐卖`
+                    : getRatingLabel(calculateTotalRating())}
           </div>
         </div>
 

@@ -8,26 +8,25 @@ import { useCurrentWeek } from '../hooks/useCurrentWeek'
 import { useWeekIndicators } from '../hooks/useWeekIndicators'
 import { getWeeksInYear, formatDateRange } from '../utils/weekCalculator'
 
-function WeeklyCalendar({ 
-  currentYear, 
-  selectedWeek, 
-  onWeekChange, 
-  onYearChange, 
-  minYear, 
+function WeeklyCalendar({
+  currentYear,
+  selectedWeek,
+  onWeekChange,
+  onYearChange,
+  minYear,
   maxYear,
   t0MustByWeek = {},
+  t1RecommendByWeek = {},
 }) {
   const [weeks, setWeeks] = useState([])
   const currentWeekId = useCurrentWeek()
   const { weekIndicators, weekStatuses } = useWeekIndicators(currentYear)
 
-  // 当年份改变时重新计算周
   useEffect(() => {
     const yearWeeks = getWeeksInYear(currentYear)
     setWeeks(yearWeeks)
   }, [currentYear])
 
-  // 处理年份导航
   const handlePrevYear = () => {
     if (currentYear > minYear) {
       onYearChange(currentYear - 1)
@@ -42,9 +41,8 @@ function WeeklyCalendar({
 
   return (
     <div className="weekly-calendar">
-      {/* 年份导航 */}
       <div className="year-navigation">
-        <button 
+        <button
           className="year-nav-button"
           onClick={handlePrevYear}
           disabled={currentYear <= minYear}
@@ -52,7 +50,7 @@ function WeeklyCalendar({
           ←
         </button>
         <div className="year-display">{currentYear}年</div>
-        <button 
+        <button
           className="year-nav-button"
           onClick={handleNextYear}
           disabled={currentYear >= maxYear}
@@ -61,7 +59,6 @@ function WeeklyCalendar({
         </button>
       </div>
 
-      {/* 周网格 */}
       <div className="grid grid-cols-5 gap-2">
         {weeks.map((week) => {
           const isSelected = selectedWeek === week.id
@@ -69,7 +66,14 @@ function WeeklyCalendar({
           const hasData = weekIndicators.has(week.id)
           const weekStatus = weekStatuses[week.id] || null
           const t0Must = t0MustByWeek[week.id] || null
-          
+          const t1Recommend = t1RecommendByWeek[week.id] || null
+          // 必优先；有必不显示荐
+          const cornerBadge = t0Must
+            ? { text: '必', kind: t0Must }
+            : t1Recommend
+              ? { text: '荐', kind: t1Recommend }
+              : null
+
           return (
             <div
               key={week.id}
@@ -83,17 +87,11 @@ function WeeklyCalendar({
               <div className="text-xs text-gray-500 mt-1">
                 {formatDateRange(week.startDate, week.endDate)}
               </div>
-              
-              {t0Must && weekStatus && (
-                <div
-                  className={`week-t0-must week-t0-must--${weekStatus}`}
-                  title={t0Must === 'buy' ? 'T0 必买' : 'T0 必卖'}
-                >
-                  必
-                </div>
+
+              {cornerBadge && weekStatus && (
+                <div className={`week-t0-must week-t0-must--${weekStatus}`}>{cornerBadge.text}</div>
               )}
 
-              {/* 数据指示器 */}
               {hasData && weekStatus && (
                 <div className={`week-indicator week-indicator--${weekStatus}`}></div>
               )}
@@ -102,7 +100,6 @@ function WeeklyCalendar({
         })}
       </div>
 
-      {/* 说明 — 按个人评级分档 */}
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-600"></div>
@@ -126,7 +123,8 @@ function WeeklyCalendar({
         </div>
         <div className="flex items-center gap-2 pt-1">
           <div className="week-t0-must week-t0-must--legend week-t0-must--extreme-bullish">必</div>
-          <span>T0 必买 / 必卖（右上角，颜色随评级圆点）</span>
+          <div className="week-t0-must week-t0-must--legend week-t0-must--bullish">荐</div>
+          <span>右上角徽章（颜色随评级圆点；有「必」时不显示「荐」）</span>
         </div>
         <div className="flex items-center gap-2 pt-1">
           <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>

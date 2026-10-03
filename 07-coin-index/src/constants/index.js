@@ -43,6 +43,19 @@ export const T0_MUST_RULES = {
   LOOKBACK_WEEKS: 52
 }
 
+// T1「荐」：偏短路径标签（不计入 personalRating；与 T0 互斥，有必则不荐）
+// 成功口径（设计/回测用）：开仓后 ≤ SUCCESS_HOLD_WEEKS 周触及 TAKE_PROFIT_USD 止盈
+export const T1_RECOMMEND_RULES = {
+  BUY_RATING_MIN: 4,
+  SELL_RATING_MAX: -4,
+  BUY_FNG_MIN: 25,
+  BUY_FNG_MAX: 55,
+  BUY_MAYER_MIN: 0.88,
+  SELL_MAYER_MIN: 1.2,
+  SUCCESS_HOLD_WEEKS: 8,
+  TAKE_PROFIT_USD: 500,
+}
+
 // 指标阈值
 export const INDICATOR_THRESHOLDS = {
   // 恐惧贪婪指数

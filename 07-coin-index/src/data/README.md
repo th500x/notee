@@ -8,11 +8,14 @@
 - `cache/` - API响应缓存目录
 - `backup/` - 数据备份目录
 
-## T0「必」
+## T0「必」/ T1「荐」
 
-`t0Must` 由 `src/utils/t0Must.js` 计算，经 `npm run recalc-ratings` 写入：`buy` / `sell` / `null`。不计入 `personalRating`。完整规则见 `docs/README.md` §2.3.1。
+- `t0Must`：`src/utils/t0Must.js` → `buy` / `sell` / `null`
+- `t1Recommend`：`src/utils/t1Recommend.js` → `buy` / `sell` / `null`（与必互斥）
 
-ETH 1h 均线金叉/死叉 Web Push 不在本 JSON 内，见 `docs/ETH-MA-CROSS-PUSH.md`。
+均不计入 `personalRating`；经 `npm run recalc-ratings` 写入。完整规则见 `docs/README.md` §2.3.1 / §2.3.2（页面不展示公式）。
+
+ETH 均线金叉/死叉 Web Push 不在本 JSON 内，见 `docs/ETH-MA-CROSS-PUSH.md`。
 
 ## 数据更新
 
@@ -39,6 +42,7 @@ npm run update-data
     "btcWeeklyAvgPrice": 95420.50,
     "ethWeeklyAvgPrice": 3280.75,
     "t0Must": null,
+    "t1Recommend": null,
     "rawData": {
       "btc": {
         "average": 95420.50,
