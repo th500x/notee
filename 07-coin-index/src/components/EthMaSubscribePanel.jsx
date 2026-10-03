@@ -45,9 +45,6 @@ function EthMaSubscribePanel({ auth, ma }) {
       <p className="eth-ma-subscribe__meta">
         {ETH_MA_CROSS.SYMBOL} 永续 · {ETH_MA_CROSS.KLINE_INTERVAL} 均线 · 周指标
       </p>
-      <p className="eth-ma-subscribe__hint">
-        均线：金叉看多 · 死叉看空（已收盘后约数秒到一两分钟）。周指标：每周一采数成功后，按所选方案推送。
-      </p>
 
       {lastSignal && (
         <div className={`eth-ma-subscribe__signal eth-ma-subscribe__signal--${lastSignal.cross}`}>
