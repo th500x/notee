@@ -483,7 +483,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>极度看多(≥10★):</span>
-                  <span className="text-teal-700 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
+                  <span className="text-green-600 font-medium">{summaryData.ratingCounts.extremeBullish}周</span>
                 </div>
                 <div className="flex justify-between">
                   <span>看多(4-9★):</span>
