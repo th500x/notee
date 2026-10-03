@@ -213,8 +213,8 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
         profitableTrades: 0,
         winRate: 0,
         avgHoldingWeeks: 0,
-        maxProfit: -Infinity,
-        maxLoss: Infinity,
+        maxProfit: 0,
+        maxLoss: 0, // 仅统计已结算且 profit < 0；纯止盈策略下应为 0
         totalProfit: 0
       }
 
@@ -232,11 +232,13 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
           simulationStats.avgHoldingWeeks = holdingWeeks.length > 0 ? holdingWeeks.reduce((a, b) => a + b, 0) / holdingWeeks.length : 0
 
           settledTrades.forEach(trade => {
-            if (typeof trade.profit === 'number') {
-              if (trade.profit > simulationStats.maxProfit) simulationStats.maxProfit = trade.profit
-              if (trade.profit < simulationStats.maxLoss) simulationStats.maxLoss = trade.profit
-              simulationStats.totalProfit += trade.profit
+            if (typeof trade.profit !== 'number') return
+            if (trade.profit > simulationStats.maxProfit) simulationStats.maxProfit = trade.profit
+            // 最大单笔亏损：只看真实亏损单（负数），取绝对值最大的那笔
+            if (trade.profit < 0 && trade.profit < simulationStats.maxLoss) {
+              simulationStats.maxLoss = trade.profit
             }
+            simulationStats.totalProfit += trade.profit
           })
         }
       }
@@ -533,13 +535,13 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
                 <div className="flex justify-between">
                   <span>最大单笔盈利:</span>
                   <span className="text-green-600 font-medium">
-                    {summaryData.simulation.maxProfit === -Infinity ? 'N/A' : `$${formatNumber(summaryData.simulation.maxProfit)}`}
+                    ${formatNumber(summaryData.simulation.maxProfit)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>最大单笔亏损:</span>
-                  <span className="text-red-600 font-medium">
-                    {summaryData.simulation.maxLoss === Infinity ? 'N/A' : `$${formatNumber(summaryData.simulation.maxLoss)}`}
+                  <span className={`font-medium ${summaryData.simulation.maxLoss < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    ${formatNumber(summaryData.simulation.maxLoss)}
                   </span>
                 </div>
                 <div className="flex justify-between">
