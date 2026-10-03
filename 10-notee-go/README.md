@@ -37,9 +37,9 @@ location ^~ /sp/ {
 # 安装后端依赖
 cd 10-notee-go/backend && npm install
 
-# 首次启动：与 00 一并在仓库根（10 已并入根 ecosystem.config.cjs）
-cd /www/wwwroot/notee
-pm2 start ecosystem.config.cjs --only 10-notee-go-backend
+# 首次启动 PM2（App 独立；在 10-notee-go 目录）
+cd /www/wwwroot/notee/10-notee-go
+pm2 start ecosystem.config.cjs
 
 # 重启（日常发版）
 pm2 restart 10-notee-go-backend
@@ -168,8 +168,8 @@ npm run gift:create -- --audience login_ids --ids TTGO --kind pet --id bar_fortu
 ```bash
 pm2 delete 22-one-line-backend
 mv /www/wwwroot/notee/22-one-line /www/wwwroot/notee/10-notee-go
-cd /www/wwwroot/notee
-pm2 start ecosystem.config.cjs --only 10-notee-go-backend
+cd /www/wwwroot/notee/10-notee-go
+pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
