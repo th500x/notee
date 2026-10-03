@@ -17,7 +17,7 @@ const ETH_MA_CROSS = {
   REST_TIMEOUT_MS: 15000,
   USER_AGENT: 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)',
   /** 本机工人：WS 刚收盘才推 */
-  FRESH_CLOSE_MS: 3 * 60 * 1000,
+  FRESH_CLOSE_MS: 5 * 60 * 1000,
   /** 海外 ingest 投递：允许收盘后最多 50 分钟内补推（Worker 漏跑时的余量） */
   INGEST_FRESH_CLOSE_MS: 50 * 60 * 1000,
   /**
