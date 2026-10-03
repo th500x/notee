@@ -59,19 +59,26 @@ function logError(...args) {
   console.error(LOG, ...args);
 }
 
-async function applyBuffer() {
+async function applyBuffer(options = {}) {
   return applyClosedKlineSeries(klines, {
-    freshCloseMs: ETH_MA_CROSS.FRESH_CLOSE_MS,
+    freshCloseMs:
+      options.freshCloseMs != null ? options.freshCloseMs : ETH_MA_CROSS.FRESH_CLOSE_MS,
     log: (message) => log(message),
   });
 }
 
-async function hydrateFromRest() {
+async function hydrateFromRest(options = {}) {
   const closed = await fetchClosedKlines();
   klines = closed.reduce((acc, item) => upsertClosedKline(acc, item), []);
   log(`REST hydrated ${klines.length} closed ${ETH_MA_CROSS.KLINE_INTERVAL} bars`);
   if (klines.length < MIN_BARS) return;
-  await applyBuffer();
+  // REST 路径用更长追赶窗口：WS 假健康漏收盘时仍能补推
+  await applyBuffer({
+    freshCloseMs:
+      options.freshCloseMs != null
+        ? options.freshCloseMs
+        : ETH_MA_CROSS.CATCHUP_FRESH_CLOSE_MS,
+  });
 }
 
 function scheduleWsReconnect() {
@@ -117,7 +124,7 @@ function connectWs() {
 
 async function pollRestFallback() {
   if (shuttingDown) return;
-  if (wsHealthy && klines.length >= MIN_BARS) return;
+  // 不得因 wsHealthy 跳过 REST：半开/静默 WS 会漏掉每小时收盘且永不 close。
   try {
     await hydrateFromRest();
   } catch (err) {

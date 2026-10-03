@@ -16,10 +16,15 @@ const ETH_MA_CROSS = {
   REST_LIMIT: 50,
   REST_TIMEOUT_MS: 15000,
   USER_AGENT: 'Mozilla/5.0 (compatible; notee-eth-ma-cross/1.0)',
-  /** 本机工人：刚收盘才推 */
+  /** 本机工人：WS 刚收盘才推 */
   FRESH_CLOSE_MS: 3 * 60 * 1000,
   /** 海外 ingest 投递：允许收盘后最多 50 分钟内补推（Worker 漏跑时的余量） */
   INGEST_FRESH_CLOSE_MS: 50 * 60 * 1000,
+  /**
+   * REST 兜底 / 重启追赶：WS 半开漏收盘时仍可在此窗口内补推。
+   * 须长于一小时周期，否则「漏一小时」永远推不到。
+   */
+  CATCHUP_FRESH_CLOSE_MS: 2 * 60 * 60 * 1000,
   REST_POLL_MS: 20 * 1000,
   WS_RETRY_MIN_MS: 1000,
   WS_RETRY_MAX_MS: 30 * 1000,
