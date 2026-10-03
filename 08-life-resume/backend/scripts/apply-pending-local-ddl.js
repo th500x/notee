@@ -38,6 +38,14 @@ const MIGRATION_FILES = [
 
 const DEFAULT_DB_NAME = '00_notee';
 
+/** 已成功跑过的迁移记在此表；避免幂等失败掩盖真正的数据破坏语句（如历史 004 的 DELETE）。 */
+const SCHEMA_MIGRATIONS_DDL = `
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  filename VARCHAR(255) NOT NULL PRIMARY KEY,
+  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+`;
+
 function resolveDbName() {
   return String(process.env.DB_NAME || DEFAULT_DB_NAME).trim() || DEFAULT_DB_NAME;
 }
@@ -50,6 +58,24 @@ function prepareSql(rawSql, dbName) {
       .replace(/^\s*USE\s+`[^`]+`\s*;\s*/gim, '');
   }
   return sql;
+}
+
+/** 拒绝无 WHERE 的 DELETE / 任意 TRUNCATE（004 类雷：批跑时每次都会成功清空）。带 WHERE 的定点清理仍允许。 */
+function assertNoDestructiveWipe(file, rawSql) {
+  const stripped = rawSql
+    .replace(/--[^\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const statements = stripped.split(';').map((s) => s.trim()).filter(Boolean);
+  for (const stmt of statements) {
+    if (/^TRUNCATE\b/i.test(stmt)) {
+      throw new Error(`[migrate] refused ${file}: TRUNCATE is not allowed in migrations`);
+    }
+    if (/^DELETE\s+FROM\b/i.test(stmt) && !/\bWHERE\b/i.test(stmt)) {
+      throw new Error(
+        `[migrate] refused ${file}: unconditional DELETE FROM (missing WHERE) is not allowed`
+      );
+    }
+  }
 }
 
 function isAlreadyAppliedError(err) {
@@ -66,20 +92,43 @@ function isAlreadyAppliedError(err) {
   );
 }
 
+async function ensureSchemaMigrations(conn) {
+  await conn.query(SCHEMA_MIGRATIONS_DDL);
+}
+
+async function isRecorded(conn, file) {
+  const [rows] = await conn.query(
+    'SELECT 1 AS ok FROM schema_migrations WHERE filename = ? LIMIT 1',
+    [file]
+  );
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+async function recordApplied(conn, file) {
+  await conn.query('INSERT IGNORE INTO schema_migrations (filename) VALUES (?)', [file]);
+}
+
 async function applyMigration(conn, file, dbName) {
+  if (await isRecorded(conn, file)) {
+    console.log(`[migrate] SKIP ${file} (recorded in schema_migrations)`);
+    return;
+  }
   const filePath = path.join(__dirname, '../database/migrations', file);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Migration not found: ${file}`);
   }
   const raw = fs.readFileSync(filePath, 'utf8');
+  assertNoDestructiveWipe(file, raw);
   const sql = prepareSql(raw, dbName);
   console.log(`[migrate] applying ${file} on ${dbName} ...`);
   try {
     await conn.query(sql);
+    await recordApplied(conn, file);
     console.log(`[migrate] OK ${file}`);
   } catch (err) {
     if (isAlreadyAppliedError(err)) {
-      console.log(`[migrate] SKIP ${file} (already applied)`);
+      await recordApplied(conn, file);
+      console.log(`[migrate] SKIP ${file} (already applied, now recorded)`);
       return;
     }
     throw err;
@@ -99,6 +148,11 @@ async function main() {
   });
 
   try {
+    if (process.env.MIGRATION_ASSUME_DB_EXISTS !== '1') {
+      await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+      await conn.query(`USE \`${dbName}\``);
+    }
+    await ensureSchemaMigrations(conn);
     for (const file of MIGRATION_FILES) {
       await applyMigration(conn, file, dbName);
     }
