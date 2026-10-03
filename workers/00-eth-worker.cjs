@@ -3,6 +3,9 @@
  * 入口在仓库根 workers/（.cjs，因根 package.json 为 type:module）；
  * 业务模块与 .env 仍用 08-life-resume/backend（全站 00）。
  * 须单实例；由仓库根 ecosystem.config.cjs 启动。
+ *
+ * 健康模型：以「最近是否收到过 WS 消息」为准，不以 socket.open 为准。
+ * REST 在假死/未连接时追赶；WS 正常时仅低频对账。
  */
 
 const path = require('path');
@@ -47,9 +50,12 @@ const LOG = '[00-eth-worker]';
 let klines = [];
 let socket = null;
 let wsRetryMs = ETH_MA_CROSS.WS_RETRY_MIN_MS;
-let wsHealthy = false;
+/** 最近一次收到任意 WS 帧的时间；仅 open 不算健康 */
+let lastWsActivityAt = 0;
+let lastHealthyRestAt = 0;
 let pollTimer = null;
 let shuttingDown = false;
+let reconnectTimer = null;
 
 function log(...args) {
   console.log(LOG, ...args);
@@ -57,6 +63,16 @@ function log(...args) {
 
 function logError(...args) {
   console.error(LOG, ...args);
+}
+
+function isWsSocketOpen() {
+  return Boolean(socket && socket.readyState === WebSocket.OPEN);
+}
+
+/** 有近期消息才算活着；光 open 不算。 */
+function isWsLive(now = Date.now()) {
+  if (!isWsSocketOpen() || !lastWsActivityAt) return false;
+  return now - lastWsActivityAt <= ETH_MA_CROSS.WS_STALE_MS;
 }
 
 async function applyBuffer(options = {}) {
@@ -72,7 +88,6 @@ async function hydrateFromRest(options = {}) {
   klines = closed.reduce((acc, item) => upsertClosedKline(acc, item), []);
   log(`REST hydrated ${klines.length} closed ${ETH_MA_CROSS.KLINE_INTERVAL} bars`);
   if (klines.length < MIN_BARS) return;
-  // REST 路径用更长追赶窗口：WS 假健康漏收盘时仍能补推
   await applyBuffer({
     freshCloseMs:
       options.freshCloseMs != null
@@ -83,10 +98,31 @@ async function hydrateFromRest(options = {}) {
 
 function scheduleWsReconnect() {
   if (shuttingDown) return;
+  if (reconnectTimer) return;
   const delay = wsRetryMs;
   wsRetryMs = Math.min(wsRetryMs * 2, ETH_MA_CROSS.WS_RETRY_MAX_MS);
   log(`WS reconnect in ${delay}ms`);
-  setTimeout(connectWs, delay);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectWs();
+  }, delay);
+}
+
+function forceWsReconnect(reason) {
+  if (shuttingDown) return;
+  lastWsActivityAt = 0;
+  log(`WS force reconnect: ${reason}`);
+  if (socket) {
+    const old = socket;
+    socket = null;
+    try {
+      old.removeAllListeners();
+      old.terminate();
+    } catch {
+      /* ignore */
+    }
+  }
+  scheduleWsReconnect();
 }
 
 function connectWs() {
@@ -98,12 +134,14 @@ function connectWs() {
   socket = new WebSocket(wsUrl, getWsConnectOptions());
 
   socket.on('open', () => {
-    wsHealthy = true;
+    // open 只表示握手成功；真正健康要等首帧消息刷新 lastWsActivityAt
+    lastWsActivityAt = Date.now();
     wsRetryMs = ETH_MA_CROSS.WS_RETRY_MIN_MS;
     log('WS open', wsUrl);
   });
 
   socket.on('message', (raw) => {
+    lastWsActivityAt = Date.now();
     const kline = parseWsKlinePayload(raw.toString());
     if (!kline) return;
     klines = upsertClosedKline(klines, kline);
@@ -115,20 +153,43 @@ function connectWs() {
   });
 
   socket.on('close', (code) => {
-    wsHealthy = false;
+    lastWsActivityAt = 0;
     socket = null;
     log('WS closed', code);
     scheduleWsReconnect();
   });
 }
 
-async function pollRestFallback() {
+async function pollTick() {
   if (shuttingDown) return;
-  // 不得因 wsHealthy 跳过 REST：半开/静默 WS 会漏掉每小时收盘且永不 close。
-  try {
-    await hydrateFromRest();
-  } catch (err) {
-    logError('REST', formatNetError(err));
+  const now = Date.now();
+
+  if (isWsSocketOpen() && lastWsActivityAt && now - lastWsActivityAt > ETH_MA_CROSS.WS_STALE_MS) {
+    forceWsReconnect(`no message for ${now - lastWsActivityAt}ms`);
+    try {
+      await hydrateFromRest();
+    } catch (err) {
+      logError('REST', formatNetError(err));
+    }
+    return;
+  }
+
+  if (!isWsLive(now)) {
+    try {
+      await hydrateFromRest();
+    } catch (err) {
+      logError('REST', formatNetError(err));
+    }
+    return;
+  }
+
+  if (now - lastHealthyRestAt >= ETH_MA_CROSS.REST_HEALTHY_INTERVAL_MS) {
+    lastHealthyRestAt = now;
+    try {
+      await hydrateFromRest();
+    } catch (err) {
+      logError('REST', formatNetError(err));
+    }
   }
 }
 
@@ -137,6 +198,7 @@ async function shutdown(signal) {
   shuttingDown = true;
   log('shutdown', signal);
   if (pollTimer) clearInterval(pollTimer);
+  if (reconnectTimer) clearTimeout(reconnectTimer);
   if (socket) {
     try {
       socket.close();
@@ -157,10 +219,10 @@ async function main() {
   await ensureStateRow();
   connectWs();
   pollTimer = setInterval(() => {
-    pollRestFallback().catch((err) => logError('poll', formatNetError(err)));
+    pollTick().catch((err) => logError('poll', formatNetError(err)));
   }, ETH_MA_CROSS.REST_POLL_MS);
   log('worker ready', ETH_MA_CROSS.SYMBOL, ETH_MA_CROSS.KLINE_INTERVAL);
-  await pollRestFallback();
+  await pollTick();
 }
 
 process.on('SIGINT', () => shutdown('SIGINT'));
