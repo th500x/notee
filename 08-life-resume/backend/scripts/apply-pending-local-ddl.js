@@ -33,6 +33,7 @@ const MIGRATION_FILES = [
   '013-eth-ma-trade-logs.sql',
   '014-accounts-birthday.sql',
   '015-wallet-asset-daily.sql',
+  '016-eth-subscribe-week-signals.sql',
 ];
 
 const DEFAULT_DB_NAME = '00_notee';

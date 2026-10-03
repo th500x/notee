@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ETH_MA_CROSS } from '../constants/ethMaCross'
+import { ETH_NOTIFY_PLAN_OPTIONS } from '../constants/ethSubscribe'
 import { formatEthPrice, formatSignalTime } from '../utils/ethMaFormat'
 
 function EthMaSubscribePanel({ auth, ma }) {
@@ -17,6 +18,8 @@ function EthMaSubscribePanel({ auth, ma }) {
     error: maError,
     pushSupported,
     thisDeviceSubscribed,
+    notifyPlan,
+    setNotifyPlan,
     latest,
     subscribe,
     unsubscribe,
@@ -38,17 +41,17 @@ function EthMaSubscribePanel({ auth, ma }) {
 
   return (
     <div className="eth-ma-subscribe">
-      <h3 className="eth-ma-subscribe__title">订阅 ETH 均线</h3>
+      <h3 className="eth-ma-subscribe__title">订阅 ETH</h3>
       <p className="eth-ma-subscribe__meta">
-        {ETH_MA_CROSS.SYMBOL} 永续 · {ETH_MA_CROSS.KLINE_INTERVAL} · MA{ETH_MA_CROSS.SMA_FAST} / MA{ETH_MA_CROSS.SMA_SLOW}
+        {ETH_MA_CROSS.SYMBOL} 永续 · {ETH_MA_CROSS.KLINE_INTERVAL} 均线 · 周指标
       </p>
       <p className="eth-ma-subscribe__hint">
-        金叉看多 · 死叉看空。只认已收盘 K 线；收盘后大约一两分钟内推到本机（Android Chrome 最稳）。
+        均线：金叉看多 · 死叉看空（已收盘后约数秒到一两分钟）。周指标：每周一采数成功后，按所选方案推送。
       </p>
 
       {lastSignal && (
         <div className={`eth-ma-subscribe__signal eth-ma-subscribe__signal--${lastSignal.cross}`}>
-          最近信号：{lastSignal.kindLabel} · {lastSignal.biasLabel}
+          最近均线：{lastSignal.kindLabel} · {lastSignal.biasLabel}
           {lastSignal.at ? ` · ${formatSignalTime(lastSignal.at)}` : ''}
           {lastSignal.close != null ? ` · 收盘 ${formatEthPrice(lastSignal.close)}` : ''}
         </div>
@@ -96,6 +99,27 @@ function EthMaSubscribePanel({ auth, ma }) {
             已登录 {accountId}
             {thisDeviceSubscribed ? ' · 本机已订阅' : ' · 本机未订阅'}
           </p>
+
+          <fieldset className="eth-ma-subscribe__plans">
+            <legend className="eth-ma-subscribe__label">通知方案（单选）</legend>
+            {ETH_NOTIFY_PLAN_OPTIONS.map((option) => (
+              <label key={option.value} className="eth-ma-subscribe__plan">
+                <input
+                  type="radio"
+                  name="eth-notify-plan"
+                  value={option.value}
+                  checked={notifyPlan === option.value}
+                  disabled={busy}
+                  onChange={() => setNotifyPlan(option.value)}
+                />
+                <span>
+                  <strong>{option.label}</strong>
+                  <span className="eth-ma-subscribe__plan-hint">{option.hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
           {!pushSupported && (
             <p className="eth-ma-subscribe__warn">
               当前环境不能推送。请用 HTTPS 下的 Chrome / Edge（生产站点或 localhost）。

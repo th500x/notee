@@ -99,6 +99,17 @@ export async function fetchEthMaTradesJournal() {
   return fetchJson('/eth-ma-cross/trades-journal')
 }
 
+export async function fetchEthSubscribePrefs() {
+  return fetchJson('/eth-ma-cross/subscribe-prefs')
+}
+
+export async function saveEthSubscribePrefs(notifyPlan) {
+  return fetchJson('/eth-ma-cross/subscribe-prefs', {
+    method: 'PUT',
+    body: JSON.stringify({ notifyPlan }),
+  })
+}
+
 export async function saveEthMaTrade(body) {
   return fetchJson('/eth-ma-cross/trades', {
     method: 'PUT',
@@ -121,8 +132,9 @@ export async function clearWalletWatch() {
   return fetchJson('/wallet-assets', { method: 'DELETE' })
 }
 
-export async function deleteEthMaTrade(signalOpenTime) {
-  return fetchJson(`/eth-ma-cross/trades/${encodeURIComponent(signalOpenTime)}`, {
+export async function deleteEthMaTrade(ref, signalSource = 'ma') {
+  const source = encodeURIComponent(signalSource || 'ma')
+  return fetchJson(`/eth-ma-cross/trades/${encodeURIComponent(ref)}?source=${source}`, {
     method: 'DELETE',
   })
 }

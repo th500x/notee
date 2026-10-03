@@ -18,12 +18,29 @@ const {
   upsertTrade,
   deleteTrade,
 } = require('../services/ethMaCross/tradeLogService');
+const {
+  EthSubscribePrefsError,
+  getSubscribePrefs,
+  upsertSubscribePrefs,
+} = require('../services/ethMaCross/ethSubscribePrefs');
+const { ingestWeekSignals } = require('../services/ethMaCross/weekSignalNotify');
 
 const router = express.Router();
 
 function handleTradeError(res, err) {
-  if (err instanceof TradeLogError || err instanceof PushSubscriptionError) {
+  if (
+    err instanceof TradeLogError ||
+    err instanceof PushSubscriptionError ||
+    err instanceof EthSubscribePrefsError
+  ) {
     return res.status(err.status).json({
+      success: false,
+      error: err.message,
+      code: err.code,
+    });
+  }
+  if (err && (err.code === 'BAD_WEEK_INGEST' || err.code === 'BAD_WEEK_ID' || err.code === 'BAD_WEEK_BIAS')) {
+    return res.status(err.status || 400).json({
       success: false,
       error: err.message,
       code: err.code,
@@ -160,6 +177,56 @@ router.post('/push-ack', ethMaIngestLimiter, async (req, res, next) => {
   }
 });
 
+/** GET /api/life-resume/eth-ma-cross/subscribe-prefs */
+router.get('/subscribe-prefs', requireAuth, publicReadLimiter, async (req, res) => {
+  try {
+    const data = await getSubscribePrefs(req.player.sub);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
+  }
+});
+
+/** PUT /api/life-resume/eth-ma-cross/subscribe-prefs */
+router.put('/subscribe-prefs', requireAuth, pushSubscribeLimiter, async (req, res) => {
+  try {
+    const data = await upsertSubscribePrefs(req.player.sub, req.body || {});
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
+  }
+});
+
+/** POST /api/life-resume/eth-ma-cross/week-signals/ingest — 周采脚本投递周指标 */
+router.post('/week-signals/ingest', ethMaIngestLimiter, async (req, res, next) => {
+  try {
+    if (!ingestSecretConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: '未配置 ETH_MA_INGEST_SECRET',
+        code: 'INGEST_SECRET_MISSING',
+      });
+    }
+    if (!ingestSecretMatches(readIngestSecret(req))) {
+      return res.status(401).json({
+        success: false,
+        error: '投递密钥无效',
+        code: 'INGEST_UNAUTHORIZED',
+      });
+    }
+    const data = await ingestWeekSignals(req.body || {});
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (
+      err &&
+      (err.code === 'BAD_WEEK_INGEST' || err.code === 'BAD_WEEK_ID' || err.code === 'BAD_WEEK_BIAS')
+    ) {
+      return handleTradeError(res, err);
+    }
+    return next(err);
+  }
+});
+
 /** GET /api/life-resume/eth-ma-cross/trades-journal */
 router.get('/trades-journal', requireAuth, publicReadLimiter, async (req, res) => {
   try {
@@ -180,10 +247,10 @@ router.put('/trades', requireAuth, pushSubscribeLimiter, async (req, res) => {
   }
 });
 
-/** DELETE /api/life-resume/eth-ma-cross/trades/:signalOpenTime */
-router.delete('/trades/:signalOpenTime', requireAuth, pushSubscribeLimiter, async (req, res) => {
+/** DELETE /api/life-resume/eth-ma-cross/trades/:ref?source=ma|week */
+router.delete('/trades/:ref', requireAuth, pushSubscribeLimiter, async (req, res) => {
   try {
-    const data = await deleteTrade(req.player.sub, req.params.signalOpenTime);
+    const data = await deleteTrade(req.player.sub, req.params.ref, req.query.source);
     return res.json({ success: true, data });
   } catch (err) {
     return handleTradeError(res, err);

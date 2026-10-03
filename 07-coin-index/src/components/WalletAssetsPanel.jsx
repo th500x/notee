@@ -117,7 +117,7 @@ function WalletAssetsPanel({ auth }) {
     <div className="bg-white rounded-lg shadow-md p-6 mt-8">
       <h3 className="text-lg font-semibold text-gray-900">钱包资产</h3>
       {!auth?.accountId ? (
-        <p className="text-sm text-gray-500 mt-2">登录后才能保存钱包地址。地址跟账号走，和订阅 ETH 均线一样。请在页面下方登录。</p>
+        <p className="text-sm text-gray-500 mt-2">登录后才能保存钱包地址。地址跟账号走，和订阅 ETH 一样。请在页面下方登录。</p>
       ) : (
         <>
           <p className="text-sm text-gray-500 mt-1 mb-4">

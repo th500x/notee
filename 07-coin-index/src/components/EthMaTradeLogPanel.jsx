@@ -1,9 +1,10 @@
 /**
- * 登录后：待记交叉 + 已记操作（按年/月折叠）。同一信号最多一笔。
+ * 登录后：待记（均线 + 周指标）+ 已记操作（按年/月折叠）。同一信号最多一笔。
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ETH_SIGNAL_SOURCE } from '../constants/ethSubscribe'
 import { useEthMaTradeLogs } from '../hooks/useEthMaTradeLogs'
 import { formatEthPrice, formatHoldDays, formatPnl, formatSignalTime } from '../utils/ethMaFormat'
 import { groupTradesByYearMonth, isCurrentYearMonth } from '../utils/ethMaTradeGroups'
@@ -18,11 +19,34 @@ const EMPTY_DRAFT = {
   pnl: '',
 }
 
+function signalKey(signal) {
+  if (!signal) return ''
+  if (signal.source === ETH_SIGNAL_SOURCE.WEEK) {
+    return `week:${signal.weekId}`
+  }
+  return `ma:${signal.openTime}`
+}
+
+function tradeKey(trade) {
+  if (!trade) return ''
+  if (trade.signalSource === ETH_SIGNAL_SOURCE.WEEK) {
+    return `week:${trade.weekId}`
+  }
+  return `ma:${trade.signalOpenTime}`
+}
+
 function signalLine(signal) {
   if (!signal) return ''
-  const time = formatSignalTime(signal.at || signal.openTime)
+  const time =
+    signal.source === ETH_SIGNAL_SOURCE.WEEK
+      ? signal.weekId
+      : formatSignalTime(signal.at || signal.openTime)
   const close = signal.close != null ? `收盘 ${formatEthPrice(signal.close)}` : ''
-  return [signal.kindLabel, signal.biasLabel, time, close].filter(Boolean).join(' · ')
+  const priceLabel =
+    signal.source === ETH_SIGNAL_SOURCE.WEEK && signal.close != null
+      ? `周均 ${formatEthPrice(signal.close)}`
+      : close
+  return [signal.kindLabel, signal.biasLabel, time, priceLabel].filter(Boolean).join(' · ')
 }
 
 function pnlTone(value) {
@@ -31,13 +55,19 @@ function pnlTone(value) {
   return 'zero'
 }
 
-function FoldSummary({ label, avgHoldDays, pnlTotal }) {
+function formatHoldBySource(avgHoldBySource) {
+  const ma = formatHoldDays(avgHoldBySource?.ma)
+  const week = formatHoldDays(avgHoldBySource?.week)
+  return `平均持仓天数：${ma}（均线）${week}（指标）`
+}
+
+function FoldSummary({ label, avgHoldBySource, pnlTotal }) {
   const total = Number.isFinite(Number(pnlTotal)) ? Number(pnlTotal) : 0
   return (
     <summary className="eth-ma-trade-log__fold-head">
       <span className="eth-ma-trade-log__fold-title">
         <span>{label}</span>
-        <span className="eth-ma-trade-log__hold">平均持仓天数：{formatHoldDays(avgHoldDays)}</span>
+        <span className="eth-ma-trade-log__hold">{formatHoldBySource(avgHoldBySource)}</span>
       </span>
       <span className={`eth-ma-trade-log__pnl eth-ma-trade-log__pnl--${pnlTone(total)}`}>
         {formatPnl(total)}
@@ -147,13 +177,13 @@ function TradeForm({ signal, draft, setDraft, busy, error, onSave, onCancel }) {
 
 function EthMaTradeLogPanel({ accountId }) {
   const { recentSignals, trades, loading, busy, error, setError, save, remove } = useEthMaTradeLogs(accountId)
-  const [editingOpenTime, setEditingOpenTime] = useState(null)
+  const [editingKey, setEditingKey] = useState(null)
   const [draft, setDraft] = useState({ ...EMPTY_DRAFT })
 
-  const tradesByOpenTime = useMemo(() => {
+  const tradesByKey = useMemo(() => {
     const map = new Map()
     for (const trade of trades) {
-      map.set(Number(trade.signalOpenTime), trade)
+      map.set(tradeKey(trade), trade)
     }
     return map
   }, [trades])
@@ -163,15 +193,21 @@ function EthMaTradeLogPanel({ accountId }) {
     [recentSignals]
   )
   const grouped = useMemo(() => groupTradesByYearMonth(trades), [trades])
-  const editingSignal =
-    recentSignals.find((item) => item.openTime === editingOpenTime) ||
-    tradesByOpenTime.get(editingOpenTime)?.signal ||
-    null
+
+  const editingSignal = useMemo(() => {
+    if (!editingKey) return null
+    return (
+      recentSignals.find((item) => signalKey(item) === editingKey) ||
+      tradesByKey.get(editingKey)?.signal ||
+      null
+    )
+  }, [editingKey, recentSignals, tradesByKey])
 
   const openCreate = (signal) => {
     setError('')
-    setEditingOpenTime(signal.openTime)
-    const existing = tradesByOpenTime.get(signal.openTime)
+    const key = signalKey(signal)
+    setEditingKey(key)
+    const existing = tradesByKey.get(key)
     if (existing) {
       setDraft(draftFromTrade(existing))
       return
@@ -184,16 +220,16 @@ function EthMaTradeLogPanel({ accountId }) {
 
   const openEdit = (trade) => {
     setError('')
-    setEditingOpenTime(trade.signalOpenTime)
+    setEditingKey(tradeKey(trade))
     setDraft(draftFromTrade(trade))
   }
 
   const closeForm = () => {
-    setEditingOpenTime(null)
+    setEditingKey(null)
     setDraft({ ...EMPTY_DRAFT })
   }
 
-  const formOpen = editingOpenTime != null && editingSignal != null
+  const formOpen = editingKey != null && editingSignal != null
 
   useEffect(() => {
     if (!formOpen) return undefined
@@ -202,50 +238,73 @@ function EthMaTradeLogPanel({ accountId }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [formOpen, editingOpenTime])
+  }, [formOpen, editingKey])
 
   const handleSave = async () => {
-    if (editingOpenTime == null) return
-    const ok = await save({
-      signalOpenTime: editingOpenTime,
-      entryPrice: draft.entryPrice,
-      quantity: draft.quantity,
-      takeProfitPrice: draft.takeProfitPrice,
-      stopLossPrice: draft.stopLossPrice === '' ? null : draft.stopLossPrice,
-      closedOn: draft.closedOn === '' ? null : draft.closedOn,
-      pnl: draft.pnl === '' ? null : draft.pnl,
-    })
+    if (!editingSignal) return
+    const body =
+      editingSignal.source === ETH_SIGNAL_SOURCE.WEEK
+        ? {
+            signalSource: ETH_SIGNAL_SOURCE.WEEK,
+            weekId: editingSignal.weekId,
+            entryPrice: draft.entryPrice,
+            quantity: draft.quantity,
+            takeProfitPrice: draft.takeProfitPrice,
+            stopLossPrice: draft.stopLossPrice === '' ? null : draft.stopLossPrice,
+            closedOn: draft.closedOn === '' ? null : draft.closedOn,
+            pnl: draft.pnl === '' ? null : draft.pnl,
+          }
+        : {
+            signalSource: ETH_SIGNAL_SOURCE.MA,
+            signalOpenTime: editingSignal.openTime,
+            entryPrice: draft.entryPrice,
+            quantity: draft.quantity,
+            takeProfitPrice: draft.takeProfitPrice,
+            stopLossPrice: draft.stopLossPrice === '' ? null : draft.stopLossPrice,
+            closedOn: draft.closedOn === '' ? null : draft.closedOn,
+            pnl: draft.pnl === '' ? null : draft.pnl,
+          }
+    const ok = await save(body)
     if (ok) closeForm()
   }
 
-  const handleDelete = async (signalOpenTime) => {
+  const handleDelete = async (trade) => {
     if (!window.confirm('删除这笔操作记录？信号本身仍会留在待记列表。')) return
-    const ok = await remove(signalOpenTime)
-    if (ok && editingOpenTime === signalOpenTime) closeForm()
+    const source = trade.signalSource || ETH_SIGNAL_SOURCE.MA
+    const ref = source === ETH_SIGNAL_SOURCE.WEEK ? trade.weekId : trade.signalOpenTime
+    const ok = await remove(ref, source)
+    if (ok && editingKey === tradeKey(trade)) closeForm()
+  }
+
+  const rowTone = (signal) => {
+    if (!signal) return 'neutral'
+    if (signal.cross === 'golden' || signal.bias === 'long') return 'golden'
+    if (signal.cross === 'death' || signal.bias === 'short') return 'death'
+    return 'neutral'
   }
 
   return (
     <div className="eth-ma-trade-log">
       <h3 className="eth-ma-subscribe__title">操作记录</h3>
       <p className="eth-ma-subscribe__hint">
-        只有点「记一笔」才写入。同一根交叉加仓或改止盈，都改这一笔。最终收益以你填的为准。
+        只有点「记一笔」才写入。均线交叉与周指标各算一条。最终收益以你填的为准。
       </p>
       <div className="eth-ma-trade-log__scroll">
         {loading ? (
           <p className="eth-ma-subscribe__muted">加载操作记录…</p>
         ) : (
           <>
-            {editingOpenTime == null && error && (
+            {editingKey == null && error && (
               <p className="eth-ma-subscribe__error">{error}</p>
             )}
 
             <h4 className="eth-ma-trade-log__section">待记</h4>
             {pendingSignals.length === 0 ? (
-              <p className="eth-ma-subscribe__muted">暂无待记信号。新的金叉/死叉出现后会列在这里。</p>
+              <p className="eth-ma-subscribe__muted">暂无待记信号。新的金叉/死叉或周指标出现后会列在这里。</p>
             ) : (
               <ul className="eth-ma-trade-log__list">
                 {pendingSignals.map((signal) => (
-                  <li key={signal.openTime} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${signal.cross}`}>
+                  <li key={signalKey(signal)} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${rowTone(signal)}`}>
                     <span>{signalLine(signal)}</span>
                     <button
                       type="button"
@@ -262,13 +321,13 @@ function EthMaTradeLogPanel({ accountId }) {
 
             <h4 className="eth-ma-trade-log__section">已记</h4>
             {grouped.length === 0 ? (
-              <p className="eth-ma-subscribe__muted">还没有记过。未操作的交叉不会出现在这里。</p>
+              <p className="eth-ma-subscribe__muted">还没有记过。未操作的信号不会出现在这里。</p>
             ) : (
               grouped.map((yearGroup) => (
                 <details key={yearGroup.year} className="eth-ma-trade-log__fold" open={yearGroup.year === new Date().getFullYear()}>
                   <FoldSummary
                     label={`${yearGroup.year}年`}
-                    avgHoldDays={yearGroup.avgHoldDays}
+                    avgHoldBySource={yearGroup.avgHoldBySource}
                     pnlTotal={yearGroup.pnlTotal}
                   />
                   {yearGroup.months.map((monthGroup) => (
@@ -279,12 +338,12 @@ function EthMaTradeLogPanel({ accountId }) {
                     >
                       <FoldSummary
                         label={`${monthGroup.month}月 · ${monthGroup.trades.length} 笔`}
-                        avgHoldDays={monthGroup.avgHoldDays}
+                        avgHoldBySource={monthGroup.avgHoldBySource}
                         pnlTotal={monthGroup.pnlTotal}
                       />
                       <ul className="eth-ma-trade-log__list">
                         {monthGroup.trades.map((trade) => (
-                          <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${trade.signal?.cross}`}>
+                          <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${rowTone(trade.signal)}`}>
                             <span>
                               {signalLine(trade.signal)}
                               {` · 买 ${formatEthPrice(trade.entryPrice)} × ${trade.quantity}`}
@@ -294,7 +353,7 @@ function EthMaTradeLogPanel({ accountId }) {
                               <button type="button" className="eth-ma-subscribe__btn eth-ma-subscribe__btn--ghost" disabled={busy} onClick={() => openEdit(trade)}>
                                 改
                               </button>
-                              <button type="button" className="eth-ma-subscribe__link" disabled={busy} onClick={() => handleDelete(trade.signalOpenTime)}>
+                              <button type="button" className="eth-ma-subscribe__link" disabled={busy} onClick={() => handleDelete(trade)}>
                                 删除
                               </button>
                             </span>
@@ -314,7 +373,7 @@ function EthMaTradeLogPanel({ accountId }) {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-label="编辑操作记录">
             <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto p-4">
               <h4 className="text-base font-semibold text-gray-900 mb-2">
-                {tradesByOpenTime.has(editingOpenTime) ? '修改这笔记录' : '记一笔'}
+                {tradesByKey.has(editingKey) ? '修改这笔记录' : '记一笔'}
               </h4>
               <TradeForm
                 signal={editingSignal}

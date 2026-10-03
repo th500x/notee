@@ -62,6 +62,7 @@ function formatCrossSignalRow(row, extra = {}) {
   const openTime = Number(row.open_time) || 0;
   const closeTime = Number(row.close_time) || 0;
   return {
+    source: 'ma',
     openTime,
     closeTime,
     cross,

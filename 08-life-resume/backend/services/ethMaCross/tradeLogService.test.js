@@ -10,9 +10,11 @@ describe('parseTradeInput', () => {
     takeProfitPrice: 2500,
   };
 
-  it('accepts a complete payload and leaves optional fields null', () => {
+  it('defaults to ma source and leaves optional fields null', () => {
     assert.deepEqual(parseTradeInput(base), {
+      signalSource: 'ma',
       signalOpenTime: 1756889999000,
+      weekId: null,
       entryPrice: 2403.62,
       quantity: 0.5,
       takeProfitPrice: 2500,
@@ -20,6 +22,19 @@ describe('parseTradeInput', () => {
       closedOn: null,
       pnl: null,
     });
+  });
+
+  it('parses week source with weekId', () => {
+    const parsed = parseTradeInput({
+      signalSource: 'week',
+      weekId: '2026-W40',
+      entryPrice: 2400,
+      quantity: 1,
+      takeProfitPrice: 2500,
+    });
+    assert.equal(parsed.signalSource, 'week');
+    assert.equal(parsed.weekId, '2026-W40');
+    assert.equal(parsed.signalOpenTime, null);
   });
 
   it('parses optional stop, date, and signed pnl', () => {
@@ -43,11 +58,13 @@ describe('parseTradeInput', () => {
 });
 
 describe('formatTradeLog', () => {
-  it('maps snake_case rows to camelCase and fills suggested pnl', () => {
+  it('maps snake_case ma rows to camelCase and fills suggested pnl', () => {
     const trade = formatTradeLog({
       id: 8,
       account_id: '0996',
+      signal_source: 'ma',
       signal_open_time: 1000,
+      week_id: null,
       entry_price: '2400.00000000',
       quantity: '1.00000000',
       take_profit_price: '2450.00000000',
@@ -63,6 +80,7 @@ describe('formatTradeLog', () => {
       signal_sma25: '2390',
     });
     assert.equal(trade.accountId, '0996');
+    assert.equal(trade.signalSource, 'ma');
     assert.equal(trade.entryPrice, 2400);
     assert.equal(trade.closedOn, '2026-09-03');
     assert.equal(trade.suggestedPnlAtTakeProfit, 50);

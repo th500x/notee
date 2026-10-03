@@ -57,11 +57,11 @@ export function useEthMaTradeLogs(accountId) {
     }
   }, [refresh])
 
-  const remove = useCallback(async (signalOpenTime) => {
+  const remove = useCallback(async (ref, signalSource = 'ma') => {
     setBusy(true)
     setError('')
     try {
-      const result = await deleteEthMaTrade(signalOpenTime)
+      const result = await deleteEthMaTrade(ref, signalSource)
       if (!result.success) {
         setError(result.error || '删除失败')
         return false

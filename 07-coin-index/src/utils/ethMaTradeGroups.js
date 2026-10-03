@@ -2,6 +2,8 @@
  * 已记操作按本地年 / 月分组，供折叠列表使用。
  */
 
+import { ETH_SIGNAL_SOURCE } from '../constants/ethSubscribe.js'
+
 function signalDate(trade) {
   const ms = Number(trade?.signalOpenTime) || Date.parse(trade?.signal?.at || '')
   const date = new Date(ms)
@@ -43,6 +45,15 @@ export function averageHoldDays(trades) {
   return Math.round((days.reduce((sum, n) => sum + n, 0) / days.length) * 10) / 10
 }
 
+/** 均线 / 指标两侧平均持仓天数（无数据为 null）。 */
+export function averageHoldDaysBySource(trades) {
+  const list = Array.isArray(trades) ? trades : []
+  return {
+    ma: averageHoldDays(list.filter((t) => (t.signalSource || ETH_SIGNAL_SOURCE.MA) === ETH_SIGNAL_SOURCE.MA)),
+    week: averageHoldDays(list.filter((t) => t.signalSource === ETH_SIGNAL_SOURCE.WEEK)),
+  }
+}
+
 /** 手填最终收益合计；缺字段按 0。 */
 export function sumTradePnl(trades) {
   let total = 0
@@ -77,6 +88,7 @@ export function groupTradesByYearMonth(trades) {
           trades: items,
           pnlTotal: sumTradePnl(items),
           avgHoldDays: averageHoldDays(items),
+          avgHoldBySource: averageHoldDaysBySource(items),
         }))
       const yearTrades = monthGroups.flatMap((item) => item.trades)
       return {
@@ -84,6 +96,7 @@ export function groupTradesByYearMonth(trades) {
         months: monthGroups,
         pnlTotal: sumTradePnl(yearTrades),
         avgHoldDays: averageHoldDays(yearTrades),
+        avgHoldBySource: averageHoldDaysBySource(yearTrades),
       }
     })
 }
