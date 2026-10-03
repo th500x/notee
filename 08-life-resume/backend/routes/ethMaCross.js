@@ -83,7 +83,7 @@ router.get('/latest', publicReadLimiter, async (req, res, next) => {
   }
 });
 
-/** POST /api/life-resume/eth-ma-cross/ingest — 海外（Cloudflare Worker）投递已收盘 K 线 */
+/** POST /api/life-resume/eth-ma-cross/ingest — 应急投递已收盘 K 线（生产由 00-eth-worker 本机拉线） */
 router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
   try {
     if (!ingestSecretConfigured()) {
@@ -125,7 +125,7 @@ router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
   }
 });
 
-/** POST /api/life-resume/eth-ma-cross/push-ack — Cloudflare 海外发完 Web Push 后回执 */
+/** POST /api/life-resume/eth-ma-cross/push-ack — 外部代发 Web Push 后的回执（应急路径） */
 router.post('/push-ack', ethMaIngestLimiter, async (req, res, next) => {
   try {
     if (!ingestSecretConfigured()) {

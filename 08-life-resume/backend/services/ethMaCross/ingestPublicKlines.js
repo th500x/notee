@@ -1,7 +1,7 @@
 /**
- * 海外投递用：从能访问交易所的网络拉 ETHUSDT 永续 1h。
- * 生产由 Cloudflare Worker 调用同等解析（cf-eth-ma-klines/src/index.js 须同步）。
- * 默认先 Gate（Cloudflare 上币安/Bitget 常 403）；失败再 Bybit → 币安。
+ * 应急 ingest 用：从能访问交易所的网络拉 ETHUSDT 永续 1h。
+ * 生产主路径是 `00-eth-worker`（币安 WS/REST）；本模块供 push-eth-ma-klines 等手工投递。
+ * 默认先 Gate，失败再 Bybit → 币安。
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');

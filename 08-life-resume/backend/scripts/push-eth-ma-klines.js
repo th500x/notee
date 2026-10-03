@@ -1,6 +1,6 @@
 /**
- * 应急/本机手工投递：在能访问交易所的网络拉 ETHUSDT 永续已收盘 K 线，POST 到 11 ingest。
- * 生产主路径是 Cloudflare Worker（08-life-resume/cf-eth-ma-klines），不要再用 GitHub Actions。
+ * 应急/本机手工投递：拉 ETHUSDT 永续已收盘 K 线，POST 到 00 ingest。
+ * 生产主路径是 PM2 `00-eth-worker`（仓库根 workers/00-eth-worker.cjs），勿与工人双开。
  * Usage:
  *   ETH_MA_INGEST_URL=https://notee.vip/api/life-resume/eth-ma-cross/ingest \
  *   ETH_MA_INGEST_SECRET=... \

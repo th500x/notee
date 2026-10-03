@@ -30,8 +30,8 @@
 
 ## Notee 网页后端（2026-09-29）
 
-- 全站进程是 **`08-life-resume/backend`**（PM2 `00-notee-backend`，端口 **3000**，启动脚本在仓库根目录 `ecosystem.config.cjs`）：管理员口令 `/api/auth`，人生片段 `/api/life-resume`。
-- 目录是 `08-life-resume`。库名是 **`00_notee`**，对象存储桶名是 **`00-notee`**（曼谷 `oss-ap-southeast-7`）。租赁库名是 **`06_rental`**，照片桶是 **`06-rental`**。今日一句库名是 **`10_notee_go`**。
+- 全站进程由仓库根 **`ecosystem.config.cjs`** 启动：`00-notee-backend`（端口 **3000**，代码在 `08-life-resume/backend`）、**`00-eth-worker`**（入口 `workers/00-eth-worker.cjs`）、**`10-notee-go-backend`**（端口 **3010**）。
+- 库名是 **`00_notee`**，对象存储桶名是 **`00-notee`**（曼谷 `oss-ap-southeast-7`）。租赁库名是 **`06_rental`**，照片桶是 **`06-rental`**。今日一句库名是 **`10_notee_go`**。
 - 管理员密钥是 `ADMIN_JWT_SECRET`，账号密钥是 `JWT_SECRET`，不能相同。
-- 留言板与 `01` 新闻后端已撤。新闻页读静态 JSON。`06` 租赁后端仍独立（PM2 `06-rental-backend`，端口 3006）。
-- 主页子项目为 `01`、`03-lost-pearls`、`06`、`07`、`08`。`02-tale-historical` 已删除。`33-san-storm` 不再由本站托管。
+- 留言板与 `01` 新闻后端已撤。新闻页读静态 JSON。**仅** `06` 租赁另用 `06-rental-tracking/ecosystem.config.cjs`（PM2 `06-rental-backend`，端口 3006）。
+- 主页子项目为 `01`、`03-lost-pearls`、`06`、`07`、`08`、`10`。`02-tale-historical` 已删除。`33-san-storm` 不再由本站托管。

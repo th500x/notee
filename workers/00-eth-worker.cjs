@@ -1,17 +1,31 @@
 /**
- * ETHUSDT 1h SMA(7)/SMA(25) 金叉死叉工人。
- * 独立进程；PM2 必须单实例。国内机访问不了币安时请停掉本进程，改用 Cloudflare Worker ingest。
+ * ETHUSDT 1h SMA(7)/SMA(25) 金叉死叉工人（PM2：00-eth-worker）。
+ * 入口在仓库根 workers/（.cjs，因根 package.json 为 type:module）；
+ * 业务模块与 .env 仍用 08-life-resume/backend（全站 00）。
+ * 须单实例；由仓库根 ecosystem.config.cjs 启动。
  */
 
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
+const Module = require('module');
+
+const backendRoot = path.join(__dirname, '..', '08-life-resume', 'backend');
+const backendNodeModules = path.join(backendRoot, 'node_modules');
+module.paths.unshift(backendNodeModules);
+const nodeModulePaths = Module._nodeModulePaths;
+Module._nodeModulePaths = function patchedNodeModulePaths(from) {
+  const paths = nodeModulePaths.call(this, from);
+  if (!paths.includes(backendNodeModules)) paths.unshift(backendNodeModules);
+  return paths;
+};
+
+require('dotenv').config({ path: path.join(backendRoot, '.env') });
+require('dotenv').config({ path: path.join(backendRoot, '.env.local'), override: true });
 if (process.env.NODE_ENV === 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '../.env.production'), override: true });
+  require('dotenv').config({ path: path.join(backendRoot, '.env.production'), override: true });
 }
 
 const WebSocket = require('ws');
-const { ETH_MA_CROSS } = require('../constants/ethMaCross');
+const { ETH_MA_CROSS } = require(path.join(backendRoot, 'constants/ethMaCross'));
 const {
   fetchClosedKlines,
   parseWsKlinePayload,
@@ -19,13 +33,16 @@ const {
   formatNetError,
   resolveWsKlineUrl,
   getWsConnectOptions,
-} = require('../services/ethMaCross/binanceFuturesKline');
-const { MIN_BARS, applyClosedKlineSeries } = require('../services/ethMaCross/processBar');
-const { ensureStateRow } = require('../services/ethMaCross/signalStateStore');
-const { assertVapidConfigured } = require('../services/webPush/vapid');
-const { closePool } = require('../database/connection');
+} = require(path.join(backendRoot, 'services/ethMaCross/binanceFuturesKline'));
+const { MIN_BARS, applyClosedKlineSeries } = require(path.join(
+  backendRoot,
+  'services/ethMaCross/processBar'
+));
+const { ensureStateRow } = require(path.join(backendRoot, 'services/ethMaCross/signalStateStore'));
+const { assertVapidConfigured } = require(path.join(backendRoot, 'services/webPush/vapid'));
+const { closePool } = require(path.join(backendRoot, 'database/connection'));
 
-const LOG = '[eth-ma-cross]';
+const LOG = '[00-eth-worker]';
 
 let klines = [];
 let socket = null;
@@ -129,7 +146,7 @@ async function shutdown(signal) {
 }
 
 async function main() {
-  assertVapidConfigured('eth-ma-cross-worker');
+  assertVapidConfigured('00-eth-worker');
   await ensureStateRow();
   connectWs();
   pollTimer = setInterval(() => {
