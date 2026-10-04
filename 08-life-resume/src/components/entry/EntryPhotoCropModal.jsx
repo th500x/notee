@@ -277,7 +277,7 @@ export default function EntryPhotoCropModal({ open, file, displayFilename = null
 
   return (
     <div
-      className="fixed z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={overlayStyle || { inset: 0 }}
     >
       <button

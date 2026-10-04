@@ -446,8 +446,9 @@ export default function EntryEditorModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    // z-[60]：须高于标签列表弹窗 TagEntriesModal（z-50），否则从标签弹窗点「编辑」会被挡住
+    return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40" aria-hidden="true" />
       <div
         data-entry-editor-scroll

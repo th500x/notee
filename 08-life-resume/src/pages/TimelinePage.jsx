@@ -610,6 +610,7 @@ export default function TimelinePage() {
         onClose={() => setTagFilterLabel(null)}
         onEdit={openEdit}
         onDelete={handleDelete}
+        suppressEscape={editorOpen}
       />
     </div>
   );

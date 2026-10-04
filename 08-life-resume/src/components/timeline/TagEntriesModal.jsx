@@ -20,6 +20,8 @@ export default function TagEntriesModal({
   onClose,
   onEdit,
   onDelete,
+  /** 上层已开编辑器时不抢 Escape，避免先关掉标签弹窗 */
+  suppressEscape = false,
 }) {
   const list = useMemo(() => {
     if (!open || !tagLabel) return [];
@@ -29,7 +31,7 @@ export default function TagEntriesModal({
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => {
-      if (event.key === 'Escape') onClose?.();
+      if (event.key === 'Escape' && !suppressEscape) onClose?.();
     };
     window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -38,7 +40,7 @@ export default function TagEntriesModal({
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open, onClose, suppressEscape]);
 
   if (!open || !tagLabel) return null;
 
