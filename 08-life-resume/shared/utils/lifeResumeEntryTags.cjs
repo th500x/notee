@@ -3,7 +3,7 @@
  * 须与 lifeResumeEntryTags.js 同步
  */
 
-const LIFE_ENTRY_TAGS = ['学业', '工作', '游记', '家庭', '人生'];
+const LIFE_ENTRY_TAGS = ['工作', '游记', '娱乐', '家庭', '人生'];
 
 const LIFE_ENTRY_TAG_STATS_LABELS = [...LIFE_ENTRY_TAGS, '无'];
 
@@ -38,7 +38,8 @@ function countEntryTagStats(entries) {
   for (const entry of entries || []) {
     const tags = Array.isArray(entry?.tags) ? entry.tags : [];
     const raw = tags[0] ? String(tags[0]).trim() : '';
-    const tag = raw === '旅行' ? '游记' : raw;
+    // 历史别名：旅行→游记；学业已迁库为人生，统计仍兜底
+    const tag = raw === '旅行' ? '游记' : raw === '学业' ? '人生' : raw;
     if (tag && Object.prototype.hasOwnProperty.call(counts, tag) && tag !== '无') {
       counts[tag] += 1;
     } else {

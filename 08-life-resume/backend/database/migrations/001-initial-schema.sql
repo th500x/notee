@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS life_entries (
   body_grapheme_count SMALLINT UNSIGNED NOT NULL COMMENT '字素簇计数1-500',
   visibility ENUM('public','private','specific') NOT NULL COMMENT '单条权限',
   grantee_account_id CHAR(4) NULL COMMENT 'specific时唯一授权viewer',
-  tags JSON NOT NULL COMMENT '标签数组：学业/工作/旅行/家庭/人生；插入时须 JSON.stringify([])',
+  tags JSON NOT NULL COMMENT '标签数组：工作/游记/娱乐/家庭/人生；插入时须 JSON.stringify([])',
   latitude DECIMAL(10,7) NULL COMMENT '精确纬度，仅owner可读',
   longitude DECIMAL(10,7) NULL COMMENT '精确经度',
   location_public_label VARCHAR(128) NULL COMMENT '城/区县展示文案',
