@@ -29,6 +29,22 @@ function round2(value) {
   return Math.round(Number(value) * 100) / 100;
 }
 
+function round1(value) {
+  return Math.round(Number(value) * 10) / 10;
+}
+
+/**
+ * Uniswap GetWalletPositions 返回 totalApr / apr1d / apr7d / apr30d（百分数）。
+ * 界面标 APY；数值优先 totalApr，与 App 头寸行主费率一致。
+ */
+function pickPositionApy(position) {
+  for (const key of ['totalApr', 'apr1d', 'apr7d', 'apr30d']) {
+    const n = Number(position?.[key]);
+    if (Number.isFinite(n)) return round1(n);
+  }
+  return null;
+}
+
 function estimatePositionUsd(position) {
   if (
     position.sqrtPriceX96 == null ||
@@ -156,6 +172,7 @@ async function fetchPositions(address) {
       token0: position.token0Metadata?.symbol || '?',
       token1: position.token1Metadata?.symbol || '?',
       inRange,
+      apy: pickPositionApy(position),
       usd: (() => {
         const estimated = estimatePositionUsd(position);
         return estimated == null ? null : round2(estimated);
@@ -209,5 +226,6 @@ module.exports = {
   WalletAssetsError,
   normalizeWalletAddress,
   estimatePositionUsd,
+  pickPositionApy,
   loadWalletAssets,
 };

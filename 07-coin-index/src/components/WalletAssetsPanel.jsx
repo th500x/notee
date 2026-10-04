@@ -28,6 +28,19 @@ function formatUsd(value) {
   }).format(amount)
 }
 
+function formatApy(value) {
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return null
+  return `${amount.toFixed(1)}%`
+}
+
+function formatPositionVersion(version) {
+  const raw = String(version || '').trim()
+  if (!raw) return ''
+  const compact = raw.replace(/^POOL_PROTOCOL_/i, '')
+  return compact.toLowerCase()
+}
+
 function formatStart(iso) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''))
   if (!match) return iso || ''
@@ -196,19 +209,23 @@ function WalletAssetsPanel({ auth }) {
                 <>
                   <h4 className="text-sm font-medium text-gray-900 mt-4">Uniswap 头寸</h4>
                   <ul className="mt-1 text-sm text-gray-700 space-y-1">
-                    {quote.positions.map((position, index) => (
-                      <li key={`${position.chainId}-${position.version}-${index}`} className="flex justify-between gap-3">
-                        <span>
-                          {position.token0} / {position.token1}
-                          <span className="text-gray-400">
-                            {' '}
-                            · {String(position.version || '').toLowerCase()}
-                            {position.inRange === false ? ' · 范围外' : ''}
+                    {quote.positions.map((position, index) => {
+                      const version = formatPositionVersion(position.version)
+                      const apyText = formatApy(position.apy)
+                      return (
+                        <li key={`${position.chainId}-${position.version}-${index}`} className="flex justify-between gap-3">
+                          <span>
+                            {position.token0} / {position.token1}
+                            <span className="text-gray-400">
+                              {version ? ` · ${version}` : ''}
+                              {apyText ? ` · ${apyText}` : ''}
+                              {position.inRange === false ? ' · 范围外' : ''}
+                            </span>
                           </span>
-                        </span>
-                        <span>{position.usd == null ? '--' : formatUsd(position.usd)}</span>
-                      </li>
-                    ))}
+                          <span>{position.usd == null ? '--' : formatUsd(position.usd)}</span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </>
               )}
