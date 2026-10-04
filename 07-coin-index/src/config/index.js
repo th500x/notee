@@ -3,7 +3,10 @@
  * 集中管理环境变量和应用配置
  */
 
-import { YEAR_RANGE, DATA_PATHS } from '../constants'
+import { DATA_PATHS } from '../constants'
+import { getConfiguredYearRange } from '../utils/weekCalculator'
+
+const yearRange = getConfiguredYearRange()
 
 export const config = {
   /** 人生片段 API；开发环境走 Vite proxy → 3000 */
@@ -20,11 +23,11 @@ export const config = {
     ]
   },
   
-  // 年份配置
+  // 年份配置（随今天自动延伸；UI 请优先 getConfiguredYearRange()）
   years: {
-    min: YEAR_RANGE.MIN,
-    max: YEAR_RANGE.MAX,
-    default: YEAR_RANGE.DEFAULT
+    min: yearRange.min,
+    max: yearRange.max,
+    default: yearRange.default,
   },
   
   // 功能开关

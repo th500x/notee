@@ -1,10 +1,22 @@
 /**
  * 周计算工具
- * 处理周数计算和日期范围
+ * 2025 为锚点（含跨年 W53）；2026 起由上一年最后一周结束日的次日连推周一～周日。
  */
 
-import { SPECIAL_WEEKS, SPECIAL_WEEKS_2026, WEEK_LIMITS } from '../constants'
-import { formatWeekId } from './weeklyData'
+import { SPECIAL_WEEKS, WEEK_LIMITS, YEAR_RANGE } from '../constants'
+
+/** 避免 import weeklyData（其会再 import validation → 环形依赖） */
+const formatWeekId = (year, weekNum) =>
+  `${year}-W${String(weekNum).padStart(2, '0')}`
+
+const atNoon = (date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0)
+
+const addDays = (date, days) => {
+  const next = atNoon(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
 
 /**
  * 计算周数 (ISO 8601标准)
@@ -19,95 +31,102 @@ export function getWeekNumber(date) {
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7)
 }
 
+function getWeeksInYear2025() {
+  const year = 2025
+  const weeks = []
+  let currentDate = new Date(year, 0, 1)
+  const dayOfWeek = currentDate.getDay()
+  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  currentDate.setDate(currentDate.getDate() + daysToMonday)
+
+  for (let weekNum = 1; weekNum <= WEEK_LIMITS.STANDARD_WEEKS; weekNum++) {
+    const weekEnd = new Date(currentDate)
+    weekEnd.setDate(currentDate.getDate() + 6)
+    weeks.push({
+      id: formatWeekId(year, weekNum),
+      weekNumber: weekNum,
+      startDate: atNoon(currentDate),
+      endDate: atNoon(weekEnd),
+      year,
+    })
+    currentDate.setDate(currentDate.getDate() + 7)
+  }
+
+  const w53 = SPECIAL_WEEKS['2025-W53']
+  weeks.push({
+    id: '2025-W53',
+    weekNumber: 53,
+    startDate: atNoon(w53.start),
+    endDate: atNoon(w53.end),
+    year: 2025,
+  })
+  return weeks
+}
+
+function deriveWeeksFromPreviousYear(year) {
+  const prev = getWeeksInYear(year - 1)
+  if (!prev.length) return []
+  const prevLast = prev[prev.length - 1]
+  let current = addDays(prevLast.endDate, 1)
+  const weeks = []
+
+  for (let weekNum = 1; weekNum <= WEEK_LIMITS.MAX_WEEKS; weekNum++) {
+    if (current.getFullYear() > year) break
+    const weekEnd = addDays(current, 6)
+    weeks.push({
+      id: formatWeekId(year, weekNum),
+      weekNumber: weekNum,
+      startDate: new Date(current),
+      endDate: weekEnd,
+      year,
+    })
+    current = addDays(current, 7)
+  }
+  return weeks
+}
+
 /**
  * 获取某年的所有周
  * @param {number} year - 年份
  * @returns {Array<Object>} 周数组
  */
 export function getWeeksInYear(year) {
-  const weeks = []
-  
-  if (year === 2025) {
-    // 2025年：标准52周 + 跨年W53
-    const startDate = new Date(year, 0, 1)
-    let currentDate = new Date(startDate)
-    
-    // 调整到周一
-    const dayOfWeek = currentDate.getDay()
-    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-    currentDate.setDate(currentDate.getDate() + daysToMonday)
-    
-    // 生成前52周
-    for (let weekNum = 1; weekNum <= WEEK_LIMITS.STANDARD_WEEKS; weekNum++) {
-      const weekEnd = new Date(currentDate)
-      weekEnd.setDate(currentDate.getDate() + 6)
-      
-      weeks.push({
-        id: formatWeekId(year, weekNum),
-        weekNumber: weekNum,
-        startDate: new Date(currentDate),
-        endDate: new Date(weekEnd),
-        year
-      })
-      
-      currentDate.setDate(currentDate.getDate() + 7)
-    }
-    
-    // 添加跨年W53
-    const w53 = SPECIAL_WEEKS['2025-W53']
-    weeks.push({
-      id: '2025-W53',
-      weekNumber: 53,
-      startDate: new Date(w53.start),
-      endDate: new Date(w53.end),
-      year: 2025
-    })
-    
-  } else if (year === 2026) {
-    // 2026年：特殊W1-W4 + 标准W5-W51 + 跨年W52
-    
-    // 添加特殊的前4周
-    SPECIAL_WEEKS_2026.forEach(week => {
-      const startDate = new Date(week.start.getFullYear(), week.start.getMonth(), week.start.getDate(), 12, 0, 0)
-      const endDate = new Date(week.end.getFullYear(), week.end.getMonth(), week.end.getDate(), 12, 0, 0)
-      
-      weeks.push({
-        id: formatWeekId(year, week.num),
-        weekNumber: week.num,
-        startDate: startDate,
-        endDate: endDate,
-        year
-      })
-    })
-    
-    // 从第5周开始按正常逻辑计算到第51周
-    let currentDate = new Date(2026, 1, 2, 12, 0, 0) // 2月2日开始 (W5)
-    for (let weekNum = 5; weekNum <= 51; weekNum++) {
-      const weekEnd = new Date(currentDate)
-      weekEnd.setDate(currentDate.getDate() + 6)
-      
-      weeks.push({
-        id: formatWeekId(year, weekNum),
-        weekNumber: weekNum,
-        startDate: new Date(currentDate),
-        endDate: new Date(weekEnd),
-        year
-      })
-      
-      currentDate.setDate(currentDate.getDate() + 7)
-    }
-    
-    // 添加跨年W52
-    const w52 = SPECIAL_WEEKS['2026-W52']
-    weeks.push({
-      id: '2026-W52',
-      weekNumber: 52,
-      startDate: new Date(w52.start),
-      endDate: new Date(w52.end),
-      year: 2026
-    })
+  const y = Number(year)
+  if (!Number.isInteger(y) || y < YEAR_RANGE.MIN) return []
+  if (y === 2025) return getWeeksInYear2025()
+  return deriveWeeksFromPreviousYear(y)
+}
+
+/**
+ * 可切换/采数覆盖的年份范围（随「今天」自动延伸，无需人工改年）。
+ * MAX = max(今天公历年, 今天所在周所属年)。
+ */
+export function getConfiguredYearRange(referenceDate = new Date()) {
+  const today = atNoon(referenceDate)
+  const calendarYear = today.getFullYear()
+  const weekId =
+    findWeekIdForDate(today, calendarYear) ??
+    findWeekIdForDate(today, calendarYear - 1) ??
+    findWeekIdForDate(today, calendarYear + 1)
+  let weekYear = calendarYear
+  if (weekId) {
+    const match = /^(\d{4})-W\d{2}$/.exec(weekId)
+    if (match) weekYear = Number(match[1])
   }
-  
+  const max = Math.max(calendarYear, weekYear, YEAR_RANGE.MIN)
+  return {
+    min: YEAR_RANGE.MIN,
+    max,
+    default: weekYear >= YEAR_RANGE.MIN ? weekYear : max,
+  }
+}
+
+export function getAllConfiguredWeeks(referenceDate = new Date()) {
+  const { min, max } = getConfiguredYearRange(referenceDate)
+  const weeks = []
+  for (let year = min; year <= max; year++) {
+    weeks.push(...getWeeksInYear(year))
+  }
   return weeks
 }
 

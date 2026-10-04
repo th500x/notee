@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import { SPECIAL_WEEKS } from '../constants'
 import { findWeekIdForDate } from '../utils/weekCalculator'
 import { logDebug } from '../utils/errorHandler'
 
@@ -14,12 +13,6 @@ import { logDebug } from '../utils/errorHandler'
  */
 function getCurrentWeekId() {
   const today = new Date()
-
-  const week2025W53 = SPECIAL_WEEKS['2025-W53']
-  if (today >= week2025W53.start && today <= week2025W53.end) {
-    return '2025-W53'
-  }
-
   const year = today.getFullYear()
   const weekId =
     findWeekIdForDate(today, year) ??

@@ -7,7 +7,8 @@ import { useState, useEffect } from 'react'
 import { hasDataForWeek, getWeeklyData } from '../utils/weeklyData'
 import { formatWeekId } from '../utils/weeklyData'
 import { getRatingTier } from '../utils/ratingColors'
-import { YEAR_RANGE, WEEK_LIMITS } from '../constants'
+import { WEEK_LIMITS } from '../constants'
+import { getConfiguredYearRange, getWeeksInYear } from '../utils/weekCalculator'
 import { logError } from '../utils/errorHandler'
 
 /**
@@ -27,13 +28,18 @@ export function useWeekIndicators(currentYear) {
         const indicators = new Set()
         const statuses = {}
         
-        // 并行检查所有周
-        const checkPromises = []
-        for (let week = WEEK_LIMITS.MIN_WEEK; week <= WEEK_LIMITS.MAX_WEEKS; week++) {
-          const weekId = formatWeekId(currentYear, week)
-          checkPromises.push(
-            hasDataForWeek(weekId).then(hasData => ({ weekId, hasData }))
-          )
+        // 并行检查该年实际存在的周（52 或 53）
+        const yearWeeks = getWeeksInYear(currentYear)
+        const checkPromises = yearWeeks.map((week) => {
+          const weekId = week.id || formatWeekId(currentYear, week.weekNumber)
+          return hasDataForWeek(weekId).then((hasData) => ({ weekId, hasData }))
+        })
+        // 兼容：若算法异常返回空，仍按 1..MAX 扫一遍
+        if (checkPromises.length === 0) {
+          for (let week = WEEK_LIMITS.MIN_WEEK; week <= WEEK_LIMITS.MAX_WEEKS; week++) {
+            const weekId = formatWeekId(currentYear, week)
+            checkPromises.push(hasDataForWeek(weekId).then((hasData) => ({ weekId, hasData })))
+          }
         }
         
         const results = await Promise.all(checkPromises)
@@ -74,7 +80,8 @@ export function useWeekIndicators(currentYear) {
       }
     }
     
-    if (currentYear >= YEAR_RANGE.MIN && currentYear <= YEAR_RANGE.MAX) {
+    const range = getConfiguredYearRange()
+    if (currentYear >= range.min && currentYear <= range.max) {
       checkYearData()
     }
   }, [currentYear])

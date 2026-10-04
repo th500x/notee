@@ -50,16 +50,17 @@ function planWeeks(data, referenceDate = new Date()) {
   const last = getLastCompletedWeek(referenceDate)
   if (!last) throw new Error('未找到已结束的完整周')
 
+  // 周历由算法随年份自动延伸；若上一完整周距今过远，多半是定时器长期未跑，仍继续补采已结束周。
   const today = new Date(referenceDate)
   today.setHours(12, 0, 0, 0)
-  if (today.getTime() - last.endDate.getTime() > 7 * DAY_MS) {
-    throw new Error(
-      `周历只配置到 ${last.id}（${last.endDate.toDateString()} 结束），` +
-        '请先在 scripts/lib/weekSchedule.js 与 src/utils/weekCalculator.js 补上新的一年',
+  const lagDays = Math.floor((today.getTime() - last.endDate.getTime()) / DAY_MS)
+  if (lagDays > 7) {
+    console.warn(
+      `⚠️ 上一完整周 ${last.id} 已结束 ${lagDays} 天（自动周历应已覆盖新年）；将补采所有已结束且缺数的周`,
     )
   }
 
-  const ended = getAllConfiguredWeeks().filter((week) => week.endDate <= last.endDate)
+  const ended = getAllConfiguredWeeks(referenceDate).filter((week) => week.endDate <= last.endDate)
   const collect = ended.filter((week) => weekIsIncomplete(data[week.id], week))
   const refreshMacro = ended.filter(
     (week) => !collect.includes(week) && macroIsProvisional(data[week.id]),

@@ -9,11 +9,12 @@ import YearSummary from './components/YearSummary'
 import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
 import { useLifeResumeAuth } from './hooks/useLifeResumeAuth'
-import { YEAR_RANGE } from './constants'
+import { getConfiguredYearRange } from './utils/weekCalculator'
 import { computeT0MustMap } from './utils/t0Must'
 import { computeT1RecommendMap } from './utils/t1Recommend'
 
 function App() {
+  const yearRange = useMemo(() => getConfiguredYearRange(), [])
   // 使用自定义Hooks管理数据
   const { allWeeklyData, loading } = useWeeklyData()
   const currentWeekId = useCurrentWeek()
@@ -21,7 +22,7 @@ function App() {
   
   // 状态管理
   const [selectedWeek, setSelectedWeek] = useState(null)
-  const [currentYear, setCurrentYear] = useState(YEAR_RANGE.DEFAULT)
+  const [currentYear, setCurrentYear] = useState(yearRange.default)
   const [showSimulation, setShowSimulation] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
   const [simulationDataByYear, setSimulationDataByYear] = useState({}) // 按年份存储模拟数据
@@ -35,14 +36,16 @@ function App() {
     [allWeeklyData],
   )
 
-  // 年份范围
-  const minYear = YEAR_RANGE.MIN
-  const maxYear = YEAR_RANGE.MAX
+  // 年份范围（随今天自动延伸，无需改常量）
+  const minYear = yearRange.min
+  const maxYear = yearRange.max
 
-  // 设置初始选中周
+  // 设置初始选中周；跨年周时把展示年对齐到周所属年
   useEffect(() => {
     if (!selectedWeek && currentWeekId) {
       setSelectedWeek(currentWeekId)
+      const match = /^(\d{4})-W\d{2}$/.exec(currentWeekId)
+      if (match) setCurrentYear(Number(match[1]))
     }
   }, [selectedWeek, currentWeekId])
 

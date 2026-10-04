@@ -3,11 +3,13 @@
  * 集中管理所有魔法数字和配置常量
  */
 
-// 年份范围配置
+// 年份范围：MIN 为锚点年；MAX/DEFAULT 由 weekCalculator.getConfiguredYearRange() 随「今天」自动延伸
 export const YEAR_RANGE = {
   MIN: 2025,
+  /** @deprecated 请用 getConfiguredYearRange().max；保留仅为旧引用兜底 */
   MAX: 2026,
-  DEFAULT: 2026
+  /** @deprecated 请用 getConfiguredYearRange().default */
+  DEFAULT: 2026,
 }
 
 // 周数限制
@@ -94,27 +96,13 @@ export const DATA_PATHS = {
   DEV_RELATIVE_META: './weeklyData.meta.json'
 }
 
-// 特殊周配置（跨年周）
+// 仅 2025-W53 为硬编码锚点；2026 起由上一年最后一周连推（见 weekCalculator）
 export const SPECIAL_WEEKS = {
-  // 2025年W53跨年周
   '2025-W53': {
     start: new Date(2025, 11, 29), // 12月29日
-    end: new Date(2026, 0, 4)      // 1月4日
+    end: new Date(2026, 0, 4), // 1月4日
   },
-  // 2026年W52跨年周
-  '2026-W52': {
-    start: new Date(2026, 11, 28), // 12月28日
-    end: new Date(2027, 0, 3)      // 1月3日
-  }
 }
-
-// 2026年特殊周（前4周）
-export const SPECIAL_WEEKS_2026 = [
-  { start: new Date(2026, 0, 5), end: new Date(2026, 0, 11), num: 1 },   // W1: 01/05-01/11
-  { start: new Date(2026, 0, 12), end: new Date(2026, 0, 18), num: 2 },  // W2: 01/12-01/18
-  { start: new Date(2026, 0, 19), end: new Date(2026, 0, 25), num: 3 },  // W3: 01/19-01/25
-  { start: new Date(2026, 0, 26), end: new Date(2026, 1, 1), num: 4 }    // W4: 01/26-02/01
-]
 
 // 格式化配置
 export const FORMAT = {

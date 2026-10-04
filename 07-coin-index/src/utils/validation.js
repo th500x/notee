@@ -4,6 +4,7 @@
  */
 
 import { YEAR_RANGE, WEEK_LIMITS, FORMAT } from '../constants'
+import { getConfiguredYearRange, getWeeksInYear } from './weekCalculator'
 
 /**
  * 验证周ID格式
@@ -22,17 +23,21 @@ export function validateWeekId(weekId) {
     throw new Error(`无效的weekId格式: ${weekId}，应为YYYY-WNN格式（如：2026-W06）`)
   }
   
-  const year = parseInt(match[1])
-  const week = parseInt(match[2])
-  
-  if (year < YEAR_RANGE.MIN || year > YEAR_RANGE.MAX) {
-    throw new Error(`年份超出范围: ${year}，应在${YEAR_RANGE.MIN}-${YEAR_RANGE.MAX}之间`)
+  const year = parseInt(match[1], 10)
+  const week = parseInt(match[2], 10)
+  const range = getConfiguredYearRange()
+  // 允许已配置年内的周，以及算法能推出的更早锚点年之后的周（采数显式 --week= 可指向刚延伸出的年）
+  if (year < YEAR_RANGE.MIN) {
+    throw new Error(`年份超出范围: ${year}，应 >= ${YEAR_RANGE.MIN}`)
   }
-  
   if (week < WEEK_LIMITS.MIN_WEEK || week > WEEK_LIMITS.MAX_WEEKS) {
     throw new Error(`周数超出范围: ${week}，应在${WEEK_LIMITS.MIN_WEEK}-${WEEK_LIMITS.MAX_WEEKS}之间`)
   }
-  
+  const yearWeeks = getWeeksInYear(year)
+  if (!yearWeeks.some((item) => item.weekNumber === week)) {
+    throw new Error(`无效周: ${weekId}（${year} 年周历无此周；当前可切换至 ${range.max}）`)
+  }
+
   return { year, week }
 }
 
@@ -47,10 +52,11 @@ export function validateYear(year) {
     throw new Error('year必须是整数')
   }
   
-  if (year < YEAR_RANGE.MIN || year > YEAR_RANGE.MAX) {
-    throw new Error(`年份超出范围: ${year}，应在${YEAR_RANGE.MIN}-${YEAR_RANGE.MAX}之间`)
+  const range = getConfiguredYearRange()
+  if (year < range.min || year > range.max) {
+    throw new Error(`年份超出范围: ${year}，应在${range.min}-${range.max}之间`)
   }
-  
+
   return true
 }
 

@@ -4,7 +4,7 @@
  * node scripts/printWeekCalendar.js --week=2026-W07
  * node scripts/printWeekCalendar.js --year=2026
  */
-import { getWeeksInYear, resolveWeekById } from './lib/weekSchedule.js'
+import { getConfiguredYearRange, getWeeksInYear, resolveWeekById } from './lib/weekSchedule.js'
 
 function formatRow(week) {
   const fmt = (d) =>
@@ -28,9 +28,11 @@ function main() {
   }
 
   const yearArg = process.argv.find((a) => a.startsWith('--year='))
-  const year = yearArg ? parseInt(yearArg.split('=')[1], 10) : 2026
+  const year = yearArg
+    ? parseInt(yearArg.split('=')[1], 10)
+    : getConfiguredYearRange().default
 
-  console.log(`# ${year} 周历 · 权威源 scripts/lib/weekSchedule.js（周一–周日，本地日历日）`)
+  console.log(`# ${year} 周历 · 权威源 scripts/lib/weekSchedule.js（周一–周日；2026 起自动推算）`)
   console.log('周ID\tweekStart\tweekEnd\t显示')
   for (const week of getWeeksInYear(year)) {
     const row = formatRow(week)
