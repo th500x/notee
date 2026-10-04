@@ -17,6 +17,7 @@ import EntryEditorModal from '@/components/entry/EntryEditorModal';
 import ProfileHeader from '@/components/timeline/ProfileHeader';
 import LifePathPreviewModal from '@/components/timeline/LifePathPreviewModal';
 import ProfileTagStats from '@/components/timeline/ProfileTagStats';
+import TagEntriesModal from '@/components/timeline/TagEntriesModal';
 import EntrySeriesSwitcher from '@/components/timeline/EntrySeriesSwitcher';
 import EntryBodyFindReplaceModal from '@/components/timeline/EntryBodyFindReplaceModal';
 import TimelineSection from '@/components/timeline/TimelineSection';
@@ -59,6 +60,7 @@ export default function TimelinePage() {
   const [bodySearchFind, setBodySearchFind] = useState('');
   const [replacingBodies, setReplacingBodies] = useState(false);
   const [pendingScrollEntryId, setPendingScrollEntryId] = useState(null);
+  const [tagFilterLabel, setTagFilterLabel] = useState(null);
 
   const ownerId = (routeAccountId || '').toUpperCase();
   const isOwner = isLoggedIn && myAccountId && myAccountId.toUpperCase() === ownerId;
@@ -457,7 +459,7 @@ export default function TimelinePage() {
           lifePathCooldownHours={isOwner ? profile?.lifePathCooldownHours : undefined}
           lifePathGenerateAllowed={isOwner ? profile?.lifePathGenerateAllowed : true}
         />
-        <ProfileTagStats entries={entries} />
+        <ProfileTagStats entries={entries} onTagClick={setTagFilterLabel} />
       </div>
 
       {entrySeriesList.length > 0 && (
@@ -596,6 +598,18 @@ export default function TimelinePage() {
         onDiscardDraft={handleDiscardLifePathDraft}
         publishing={publishingLifePath}
         discarding={discardingLifePath}
+      />
+
+      <TagEntriesModal
+        open={Boolean(tagFilterLabel)}
+        tagLabel={tagFilterLabel}
+        entries={entries}
+        isOwner={viewerIsOwner}
+        accountId={ownerId}
+        profileDisplayName={headerDisplayName}
+        onClose={() => setTagFilterLabel(null)}
+        onEdit={openEdit}
+        onDelete={handleDelete}
       />
     </div>
   );

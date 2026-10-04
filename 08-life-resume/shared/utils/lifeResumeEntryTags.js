@@ -10,6 +10,26 @@ export const LIFE_ENTRY_TAG_STATS_LABELS = [...LIFE_ENTRY_TAGS, '无'];
 
 const TAG_SET = new Set(LIFE_ENTRY_TAGS);
 
+/** 与统计口径一致：旅行→游记、学业→人生；空白/未知 →「无」 */
+export function resolveEntryTagLabel(entry) {
+  const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+  const raw = tags[0] ? String(tags[0]).trim() : '';
+  if (!raw) return '无';
+  if (raw === '旅行') return '游记';
+  if (raw === '学业') return '人生';
+  if (TAG_SET.has(raw)) return raw;
+  return '无';
+}
+
+/**
+ * @param {Array<{ tags?: string[] }>} entries
+ * @param {string} label LIFE_ENTRY_TAG_STATS_LABELS 之一
+ */
+export function filterEntriesByTag(entries, label) {
+  const want = String(label || '');
+  return (entries || []).filter((entry) => resolveEntryTagLabel(entry) === want);
+}
+
 /**
  * @param {unknown} raw
  * @returns {{ ok: true, tags: string[] } | { ok: false, error: string, code: string }}
@@ -46,11 +66,8 @@ export function countEntryTagStats(entries) {
   counts['无'] = 0;
 
   for (const entry of entries || []) {
-    const tags = Array.isArray(entry?.tags) ? entry.tags : [];
-    const raw = tags[0] ? String(tags[0]).trim() : '';
-    // 历史别名：旅行→游记；学业已迁库为人生，统计仍兜底
-    const tag = raw === '旅行' ? '游记' : raw === '学业' ? '人生' : raw;
-    if (tag && Object.prototype.hasOwnProperty.call(counts, tag) && tag !== '无') {
+    const tag = resolveEntryTagLabel(entry);
+    if (tag && Object.prototype.hasOwnProperty.call(counts, tag)) {
       counts[tag] += 1;
     } else {
       counts['无'] += 1;
