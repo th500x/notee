@@ -8,11 +8,8 @@
 import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import {
-  getAllConfiguredWeeks,
-  getLastCompletedWeek,
-  weekNeedsPriceCollection,
-} from './lib/weekSchedule.js'
+import { getAllConfiguredWeeks, getLastCompletedWeek } from './lib/weekSchedule.js'
+import { weekIsIncomplete, listMissingRequiredFields } from './lib/weekCompleteness.js'
 import { loadWeeklyData } from './lib/weeklyDataStore.js'
 import { delay } from './lib/apiDelay.js'
 
@@ -20,27 +17,7 @@ const BETWEEN_WEEKS_DELAY = 90000
 const DAY_MS = 86400000
 const PROVISIONAL_MAX_DAYS = 14
 
-const REQUIRED_FIELDS = [
-  'btcWeeklyAvgPrice',
-  'ethWeeklyAvgPrice',
-  'btcWeeklyChange',
-  'ethBtcRatio',
-  'fearGreedIndex',
-  'mayerMultiple',
-  'ahr999',
-  'btcFourYearIndex',
-  'fedRate',
-  'bojRate',
-  'personalRating',
-]
-
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-
-function weekIsIncomplete(record, week) {
-  if (!record) return true
-  if (weekNeedsPriceCollection(record, week)) return true
-  return REQUIRED_FIELDS.some((field) => typeof record[field] !== 'number')
-}
 
 function macroIsProvisional(record) {
   return record?.macroSource?.provisional === true
@@ -136,6 +113,19 @@ async function main() {
   if (refreshMacro.length > 0) refreshProvisionalMacro(refreshMacro)
   await collectWeeks(collect)
   assertNoStaleProvisional()
+
+  // 情绪可部分写入，但任一项仍缺 → 整轮失败，systemd 每 2h 重试直到采齐
+  const after = loadWeeklyData()
+  const stillOpen = planWeeks(after).collect
+  if (stillOpen.length > 0) {
+    const detail = stillOpen
+      .map((week) => {
+        const missing = listMissingRequiredFields(after[week.id])
+        return `${week.id}（缺 ${missing.join(', ') || '价格不全'}）`
+      })
+      .join('；')
+    throw new Error(`仍有未采齐的周，将按失败重试：${detail}`)
+  }
 
   console.log('\n✅ 采集完成')
 }

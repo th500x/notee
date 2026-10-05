@@ -6,6 +6,8 @@ import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { resolveWeekById, getLastCompletedWeek } from './lib/weekSchedule.js'
+import { listMissingRequiredFields, weekIsIncomplete } from './lib/weekCompleteness.js'
+import { loadWeeklyData } from './lib/weeklyDataStore.js'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -41,14 +43,23 @@ function main() {
   console.log(`\n🗓️  采集 ${week.id} · ${fmt(week.startDate)} – ${fmt(week.endDate)}`)
 
   const pass = [weekArg]
-  if (process.argv.includes('--dry-run')) pass.push('--dry-run')
+  const dryRun = process.argv.includes('--dry-run')
+  if (dryRun) pass.push('--dry-run')
 
   runStep('1/4 价格 (CoinGecko)', 'scripts/collectWeeklyDataV2.js', pass)
   runStep('2/4 情绪指标', 'scripts/fetchSentimentIndicators.js', pass)
   runStep('3/4 宏观利率', 'scripts/fetchMacroRates.js', pass)
 
-  if (!process.argv.includes('--dry-run')) {
+  if (!dryRun) {
     runStep('4/4 重算 personalRating', 'scripts/recalculateRatings.js', [])
+    const record = loadWeeklyData()[week.id]
+    if (weekIsIncomplete(record, week)) {
+      const missing = listMissingRequiredFields(record)
+      throw new Error(
+        `${week.id} 仍未采齐（缺 ${missing.join(', ') || '价格不全'}）；` +
+          '已写入的部分会保留，整轮以失败退出以便 2 小时重试补齐',
+      )
+    }
   }
 
   console.log('\n✅ collect-week 完成')
