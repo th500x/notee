@@ -45,8 +45,8 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
       let maxETHBTCRatio = -Infinity
       let minETHBTCRatio = Infinity
 
-      // Ahr999定投次数统计
-      let ahr999InvestmentCount = 0 // 抄底区间(≤0.4) + 定投区间(>0.4 <0.8)
+      // Ahr999 进入定投/抄底区间的周数（≤0.4 抄底 + <0.8 定投）
+      let ahr999InvestmentCount = 0
 
       // 个人评级统计
       let ratingCounts = {
@@ -178,8 +178,8 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
           if (ethBtcRatio < minETHBTCRatio) minETHBTCRatio = ethBtcRatio
         }
 
-        // Ahr999定投次数统计 - 抄底区间(≤0.4) + 定投区间(>0.4 <0.8)
-        if (ahr999 !== undefined && ahr999 < 0.8) {
+        // Ahr999 定投区间周数 - 抄底(≤0.4) + 定投(>0.4 且 <0.8)
+        if (ahr999 !== undefined && ahr999 !== null && ahr999 < 0.8) {
           ahr999InvestmentCount++
         }
       })
@@ -206,35 +206,37 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
       if (gainRatio >= 60) marketTrend = '牛市'
       else if (gainRatio <= 40) marketTrend = '熊市'
 
-      // 模拟演练统计
+      // 模拟演练统计（胜率 = 盈利次数 / 总交易次数）
       let simulationStats = {
         totalTrades: 0,
-        settledTrades: 0,
         profitableTrades: 0,
+        losingTrades: 0,
         winRate: 0,
         avgHoldingWeeks: 0,
         maxProfit: 0,
-        maxLoss: 0, // 仅统计已结算且 profit < 0；纯止盈策略下应为 0
+        maxLoss: 0, // 仅统计已结算且 profit < 0
         totalProfit: 0
       }
 
       if (simData && simData.length > 0) {
         const settledTrades = simData.filter(trade => trade.status === 'settled')
         simulationStats.totalTrades = simData.length
-        simulationStats.settledTrades = settledTrades.length
+        const profitableTrades = settledTrades.filter(trade => trade.profit > 0)
+        const losingTrades = settledTrades.filter(trade => trade.profit < 0)
+        simulationStats.profitableTrades = profitableTrades.length
+        simulationStats.losingTrades = losingTrades.length
+        simulationStats.winRate =
+          simulationStats.totalTrades > 0
+            ? (profitableTrades.length / simulationStats.totalTrades) * 100
+            : 0
 
         if (settledTrades.length > 0) {
-          const profitableTrades = settledTrades.filter(trade => trade.profit > 0)
-          simulationStats.profitableTrades = profitableTrades.length
-          simulationStats.winRate = (profitableTrades.length / settledTrades.length) * 100
-
           const holdingWeeks = settledTrades.map(trade => trade.holdingWeeks).filter(weeks => typeof weeks === 'number')
           simulationStats.avgHoldingWeeks = holdingWeeks.length > 0 ? holdingWeeks.reduce((a, b) => a + b, 0) / holdingWeeks.length : 0
 
           settledTrades.forEach(trade => {
             if (typeof trade.profit !== 'number') return
             if (trade.profit > simulationStats.maxProfit) simulationStats.maxProfit = trade.profit
-            // 最大单笔亏损：只看真实亏损单（负数），取绝对值最大的那笔
             if (trade.profit < 0 && trade.profit < simulationStats.maxLoss) {
               simulationStats.maxLoss = trade.profit
             }
@@ -243,6 +245,10 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
         }
       }
 
+      const yearWeekCount = weeks.length
+      const ahr999InvestmentRate =
+        yearWeekCount > 0 ? (ahr999InvestmentCount / yearWeekCount) * 100 : 0
+
       const summary = {
         // BTC统计
         btcMaxWeeklyGain: maxWeeklyGain === -Infinity ? 0 : maxWeeklyGain,
@@ -250,7 +256,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
         btcMaxATHDrawdown: Math.abs(maxATHDrawdown), // 转为正数显示
         btcMaxWeeklyAvgPrice: maxWeeklyAvgPrice === -Infinity ? 0 : maxWeeklyAvgPrice,
         btcMinWeeklyAvgPrice: minWeeklyAvgPrice === Infinity ? 0 : minWeeklyAvgPrice,
-        ahr999InvestmentCount, // Ahr999定投次数
+        ahr999InvestmentRate, // Ahr999定投率（定投区间周数 / 当年纳入统计的周数）
 
         // ETH统计
         ethMaxWeeklyGain: maxETHWeeklyGain === -Infinity ? 0 : maxETHWeeklyGain,
@@ -386,8 +392,8 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
                   <span className="text-red-600 font-medium">{formatPercent(summaryData.btcMaxATHDrawdown)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Ahr999定投次数:</span>
-                  <span className="text-blue-600 font-medium">{summaryData.ahr999InvestmentCount}周</span>
+                  <span>Ahr999定投率:</span>
+                  <span className="text-blue-600 font-medium">{formatPercent(summaryData.ahr999InvestmentRate)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>周最高均价:</span>
@@ -515,12 +521,12 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
                   <span className="font-medium">{summaryData.simulation.totalTrades}次</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>已结算交易:</span>
-                  <span className="font-medium">{summaryData.simulation.settledTrades}次</span>
+                  <span>盈利次数:</span>
+                  <span className="text-green-600 font-medium">{summaryData.simulation.profitableTrades}次</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>盈利交易:</span>
-                  <span className="text-green-600 font-medium">{summaryData.simulation.profitableTrades}次</span>
+                  <span>亏损次数:</span>
+                  <span className="text-red-600 font-medium">{summaryData.simulation.losingTrades}次</span>
                 </div>
                 <div className="flex justify-between">
                   <span>总胜率:</span>
@@ -564,7 +570,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
               距ATH最高回撤{formatPercent(summaryData.btcMaxATHDrawdown)}。
               个人评级系统中，看多情绪占{summaryData.ratingCounts.bullish + summaryData.ratingCounts.extremeBullish}周，
               看空情绪占{summaryData.ratingCounts.bearish + summaryData.ratingCounts.extremeBearish}周。
-              {summaryData.simulation.settledTrades > 0 && (
+              {summaryData.simulation.totalTrades > 0 && (
                 <>模拟演练策略共执行{summaryData.simulation.totalTrades}次交易，胜率{formatPercent(summaryData.simulation.winRate)}，
                 总盈亏${formatNumber(summaryData.simulation.totalProfit)}。</>
               )}

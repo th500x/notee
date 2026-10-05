@@ -3,7 +3,7 @@ Description=07 coin-index weekly auto-collect and backfill
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=1d
-StartLimitBurst=7
+StartLimitBurst=12
 
 [Service]
 Type=oneshot
