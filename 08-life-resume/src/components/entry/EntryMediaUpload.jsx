@@ -79,6 +79,17 @@ export default function EntryMediaUpload({
     [mediaItems]
   );
 
+  const persistedOssFolder = useMemo(() => {
+    const keys = initialPersistedOssKeys instanceof Set
+      ? Array.from(initialPersistedOssKeys)
+      : Array.isArray(initialPersistedOssKeys) ? initialPersistedOssKeys : [];
+    for (const key of keys) {
+      const segments = String(key || '').split('/');
+      if (segments.length >= 3 && /^\d+$/.test(segments[1])) return segments[1];
+    }
+    return '';
+  }, [initialPersistedOssKeys]);
+
   const hasDocument = useMemo(
     () => mediaItems.some((item) => item.mediaType === 'document'),
     [mediaItems]
@@ -312,7 +323,14 @@ export default function EntryMediaUpload({
         onConfirm={handleCropConfirm}
       />
 
-      <p className="text-sm font-medium text-slate-800">媒体 · 本地上传</p>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium text-slate-800">媒体 · 本地上传</p>
+        {persistedOssFolder && (
+          <span className="text-xs text-slate-600 tabular-nums" title="OSS 储存目录">
+            {persistedOssFolder}
+          </span>
+        )}
+      </div>
       <p className="text-xs text-slate-500 -mt-1">照片、视频、文档只能选其一</p>
       <div className="flex flex-wrap gap-2">
         {BUNDLE_TABS.map((tab) => (
