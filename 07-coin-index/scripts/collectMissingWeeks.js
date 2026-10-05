@@ -1,14 +1,18 @@
 /**
- * 补采所有已结束、但没有记录或指标不全的周（含上一完整周），按时间先后逐周跑 collect-week；
- * 利率为暂定值（官方数据当时没发布到周结束日）的周，只重取利率并重算评级。
- * 曼谷机每周一 UTC 00:05 由 systemd 定时器经 scripts/weekly-auto-collect.sh 调用。
+ * 自动补采范围：只处理「上一完整周」+「再上一周」（共两周）。
+ * 更早的历史周不再自动重采；也不要因全量重算评级去改它们的 updatedAt。
  *
  * node scripts/collectMissingWeeks.js [--dry-run]
  */
 import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getAllConfiguredWeeks, getLastCompletedWeek } from './lib/weekSchedule.js'
+import {
+  getAllConfiguredWeeks,
+  getLastCompletedWeek,
+  getPreviousWeekId,
+  resolveWeekById,
+} from './lib/weekSchedule.js'
 import { weekIsIncomplete, listMissingRequiredFields } from './lib/weekCompleteness.js'
 import { loadWeeklyData } from './lib/weeklyDataStore.js'
 import { delay } from './lib/apiDelay.js'
@@ -23,26 +27,37 @@ function macroIsProvisional(record) {
   return record?.macroSource?.provisional === true
 }
 
-function planWeeks(data, referenceDate = new Date()) {
+/** 自动任务只看最近两周已结束周：lastCompleted + 其上一周 */
+export function getAutoCollectScope(referenceDate = new Date()) {
   const last = getLastCompletedWeek(referenceDate)
   if (!last) throw new Error('未找到已结束的完整周')
+  const prevId = getPreviousWeekId(last.id)
+  const prev = prevId ? resolveWeekById(prevId) : null
+  return {
+    lastCompleted: last,
+    scope: [prev, last].filter(Boolean),
+  }
+}
 
-  // 周历由算法随年份自动延伸；若上一完整周距今过远，多半是定时器长期未跑，仍继续补采已结束周。
+function planWeeks(data, referenceDate = new Date()) {
+  const { lastCompleted, scope } = getAutoCollectScope(referenceDate)
+
   const today = new Date(referenceDate)
   today.setHours(12, 0, 0, 0)
-  const lagDays = Math.floor((today.getTime() - last.endDate.getTime()) / DAY_MS)
+  const lagDays = Math.floor((today.getTime() - lastCompleted.endDate.getTime()) / DAY_MS)
   if (lagDays > 7) {
     console.warn(
-      `⚠️ 上一完整周 ${last.id} 已结束 ${lagDays} 天（自动周历应已覆盖新年）；将补采所有已结束且缺数的周`,
+      `⚠️ 上一完整周 ${lastCompleted.id} 已结束 ${lagDays} 天；自动任务仍只处理最近两周，更早漏周请手工 collect-week`,
     )
   }
 
-  const ended = getAllConfiguredWeeks(referenceDate).filter((week) => week.endDate <= last.endDate)
-  const collect = ended.filter((week) => weekIsIncomplete(data[week.id], week))
-  const refreshMacro = ended.filter(
+  console.log(`🎯 自动采集范围（仅两周）: ${scope.map((w) => w.id).join(', ')}`)
+
+  const collect = scope.filter((week) => weekIsIncomplete(data[week.id], week))
+  const refreshMacro = scope.filter(
     (week) => !collect.includes(week) && macroIsProvisional(data[week.id]),
   )
-  return { collect, refreshMacro }
+  return { collect, refreshMacro, scope }
 }
 
 function runScript(args) {
@@ -53,11 +68,11 @@ function runScript(args) {
 function refreshProvisionalMacro(weeks) {
   for (const week of weeks) {
     console.log(`\n${'#'.repeat(60)}\n# ${week.id} 重取利率（定稿）\n${'#'.repeat(60)}`)
-    // --finalize：只拉该周真实利率，不用「复用上周」模式
     const status = runScript(['scripts/fetchMacroRates.js', `--week=${week.id}`, '--finalize'])
     if (status !== 0) throw new Error(`${week.id} 重取利率失败 (exit ${status})`)
   }
-  const status = runScript(['scripts/recalculateRatings.js'])
+  const weekArgs = weeks.flatMap((week) => [`--week=${week.id}`])
+  const status = runScript(['scripts/recalculateRatings.js', ...weekArgs])
   if (status !== 0) throw new Error(`重算 personalRating 失败 (exit ${status})`)
 }
 
@@ -75,9 +90,9 @@ async function collectWeeks(weeks) {
   }
 }
 
-function assertNoStaleProvisional() {
+function assertNoStaleProvisional(scope) {
   const data = loadWeeklyData()
-  const stale = getAllConfiguredWeeks().filter(
+  const stale = scope.filter(
     (week) =>
       macroIsProvisional(data[week.id]) &&
       Date.now() - week.endDate.getTime() > PROVISIONAL_MAX_DAYS * DAY_MS,
@@ -92,10 +107,10 @@ function assertNoStaleProvisional() {
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run')
-  const { collect, refreshMacro } = planWeeks(loadWeeklyData())
+  const { collect, refreshMacro, scope } = planWeeks(loadWeeklyData())
 
   if (collect.length === 0 && refreshMacro.length === 0) {
-    console.log('✅ 已结束的周都有完整数据、利率均已定稿，无需采集')
+    console.log('✅ 最近两周数据齐全、利率已定稿，无需采集')
     return
   }
 
@@ -112,9 +127,8 @@ async function main() {
 
   if (refreshMacro.length > 0) refreshProvisionalMacro(refreshMacro)
   await collectWeeks(collect)
-  assertNoStaleProvisional()
+  assertNoStaleProvisional(scope)
 
-  // 情绪可部分写入，但任一项仍缺 → 整轮失败，systemd 每 2h 重试直到采齐
   const after = loadWeeklyData()
   const stillOpen = planWeeks(after).collect
   if (stillOpen.length > 0) {

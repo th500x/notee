@@ -5,7 +5,7 @@
 import { spawnSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { resolveWeekById, getLastCompletedWeek } from './lib/weekSchedule.js'
+import { resolveWeekById, getLastCompletedWeek, getPreviousWeekId } from './lib/weekSchedule.js'
 import { listMissingRequiredFields, weekIsIncomplete } from './lib/weekCompleteness.js'
 import { loadWeeklyData } from './lib/weeklyDataStore.js'
 
@@ -51,7 +51,11 @@ function main() {
   runStep('3/4 宏观利率', 'scripts/fetchMacroRates.js', pass)
 
   if (!dryRun) {
-    runStep('4/4 重算 personalRating', 'scripts/recalculateRatings.js', [])
+    // 只重算本周 + 上周（利率定稿可能改了上周），勿刷全库 updatedAt
+    const prevId = getPreviousWeekId(week.id)
+    const ratingArgs = [`--week=${week.id}`]
+    if (prevId) ratingArgs.push(`--week=${prevId}`)
+    runStep('4/4 重算 personalRating', 'scripts/recalculateRatings.js', ratingArgs)
     const record = loadWeeklyData()[week.id]
     if (weekIsIncomplete(record, week)) {
       const missing = listMissingRequiredFields(record)

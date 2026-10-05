@@ -101,34 +101,41 @@ const calculatePersonalRating = (weekData) => {
   }
 }
 
-// 主函数
-const main = () => {
-  console.log('🔄 开始重新计算所有周的个人评级...\n')
+function parseWeekFilters(argv) {
+  return [...new Set(argv.filter((a) => a.startsWith('--week=')).map((a) => a.split('=')[1]).filter(Boolean))]
+}
 
+// 主函数：可 --week=2026-W39（可重复）只改这些周的评级与 updatedAt；未指定则全量（手工维护用）
+const main = () => {
+  const filters = parseWeekFilters(process.argv)
   const data = loadWeeklyData()
-  const weekIds = Object.keys(data).sort()
-  
+  const allIds = Object.keys(data).sort()
+  const weekIds = filters.length > 0 ? filters : allIds
+
+  if (filters.length > 0) {
+    console.log(`🔄 重算指定周个人评级: ${weekIds.join(', ')}\n`)
+    for (const id of weekIds) {
+      if (!data[id]) throw new Error(`未知周或无数据: ${id}`)
+    }
+  } else {
+    console.log('🔄 开始重新计算所有周的个人评级...\n')
+  }
+
   let updatedCount = 0
   let errorCount = 0
-  
-  // 遍历所有周
-  weekIds.forEach(weekId => {
+  const touchAt = new Date().toISOString()
+
+  weekIds.forEach((weekId) => {
     try {
       const weekData = data[weekId]
-      
-      // 计算新的评分
       const { scores, totalScore } = calculatePersonalRating(weekData)
-      
-      // 保存旧评分用于对比
       const oldRating = weekData.personalRating
-      
-      // 更新数据
+
       weekData.indicatorScores = scores
       weekData.totalScore = totalScore
       weekData.personalRating = totalScore
-      weekData.updatedAt = new Date().toISOString()
-      
-      // 显示变化
+      weekData.updatedAt = touchAt
+
       if (oldRating !== totalScore) {
         console.log(`📊 ${weekId}: ${oldRating} → ${totalScore} (${totalScore > oldRating ? '+' : ''}${totalScore - oldRating})`)
         const show = (v) => (v === undefined || v === null ? 'N/A' : v)
@@ -138,15 +145,15 @@ const main = () => {
       } else {
         console.log(`✓ ${weekId}: ${totalScore} (无变化)`)
       }
-      
+
       updatedCount++
-      
     } catch (error) {
       console.error(`❌ ${weekId} 计算失败:`, error.message)
       errorCount++
     }
   })
-  
+
+  // T0/T1 依赖全量相对关系，仍全库重算徽章；但不改未点名周的 updatedAt
   const t0Signals = applyT0MustToData(data)
   const t0Buy = Object.entries(t0Signals).filter(([, signal]) => signal === 'buy').map(([id]) => id)
   const t0Sell = Object.entries(t0Signals).filter(([, signal]) => signal === 'sell').map(([id]) => id)
