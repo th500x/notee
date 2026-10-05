@@ -1,5 +1,6 @@
 /**
  * Phase 2：恐惧&贪婪、Ahr999、梅耶倍数、BTC四年指数
+ * 单项失败不拖垮整批：返回已成功项 + errors[]
  */
 import { REQUEST_DELAY, delay } from './apiDelay.js'
 import { fetchMayerAndFourYear } from './btcDailySeries.js'
@@ -87,32 +88,60 @@ export async function fetchAhr999WeekEnd(endDate) {
   }
 }
 
-/** 顺序拉取，两次请求之间等待 REQUEST_DELAY */
+/**
+ * 顺序拉取；单项失败记入 errors，其余继续。
+ * @returns {{ fearGreed, ahr999, mayer, fourYear, errors: string[] }}
+ */
 export async function fetchWeekSentiment(startDate, endDate) {
-  console.log(`📡 恐惧&贪婪: ${formatDateKey(startDate)} – ${formatDateKey(endDate)}`)
-  const fearGreed = await fetchFearGreedWeeklyAverage(startDate, endDate)
-  console.log(
-    `   ✅ 周均 ${fearGreed.weeklyAverage}（${fearGreed.daily.length} 天: ${fearGreed.daily.map((d) => d.value).join(', ')}）`,
-  )
+  const result = {
+    fearGreed: null,
+    ahr999: null,
+    mayer: null,
+    fourYear: null,
+    errors: [],
+  }
+
+  try {
+    console.log(`📡 恐惧&贪婪: ${formatDateKey(startDate)} – ${formatDateKey(endDate)}`)
+    result.fearGreed = await fetchFearGreedWeeklyAverage(startDate, endDate)
+    console.log(
+      `   ✅ 周均 ${result.fearGreed.weeklyAverage}（${result.fearGreed.daily.length} 天: ${result.fearGreed.daily.map((d) => d.value).join(', ')}）`,
+    )
+  } catch (err) {
+    result.errors.push(err.message)
+    console.warn(`   ⚠️ ${err.message}`)
+  }
 
   console.log(`⏳ 等待 ${REQUEST_DELAY / 1000}s 后请求 Ahr999…`)
   await delay(REQUEST_DELAY)
 
-  console.log(`📡 Ahr999 周末值: ${formatDateKey(endDate)}`)
-  const ahr999 = await fetchAhr999WeekEnd(endDate)
-  console.log(`   ✅ ${ahr999.date} = ${ahr999.value}`)
+  try {
+    console.log(`📡 Ahr999 周末值: ${formatDateKey(endDate)}`)
+    result.ahr999 = await fetchAhr999WeekEnd(endDate)
+    console.log(`   ✅ ${result.ahr999.date} = ${result.ahr999.value}`)
+  } catch (err) {
+    result.errors.push(err.message)
+    console.warn(`   ⚠️ ${err.message}`)
+  }
 
   console.log(`⏳ 等待 ${REQUEST_DELAY / 1000}s 后计算梅耶倍数 & BTC四年指数…`)
   await delay(REQUEST_DELAY)
 
-  console.log(`📡 梅耶倍数 & BTC四年指数: ${formatDateKey(startDate)} – ${formatDateKey(endDate)}`)
-  const { mayer, fourYear, source } = await fetchMayerAndFourYear(startDate, endDate)
-  console.log(
-    `   ✅ 梅耶 周均 ${mayer.weeklyAverage}（${mayer.daily.map((d) => d.value).join(', ')}）`,
-  )
-  console.log(
-    `   ✅ 四年 周均 ${fourYear.weeklyAverage}（${fourYear.daily.map((d) => d.value).join(', ')}，${source}）`,
-  )
+  try {
+    console.log(`📡 梅耶倍数 & BTC四年指数: ${formatDateKey(startDate)} – ${formatDateKey(endDate)}`)
+    const { mayer, fourYear, source } = await fetchMayerAndFourYear(startDate, endDate)
+    result.mayer = { ...mayer, source }
+    result.fourYear = { ...fourYear, source }
+    console.log(
+      `   ✅ 梅耶 周均 ${mayer.weeklyAverage}（${mayer.daily.map((d) => d.value).join(', ')}）`,
+    )
+    console.log(
+      `   ✅ 四年 周均 ${fourYear.weeklyAverage}（${fourYear.daily.map((d) => d.value).join(', ')}，${source}）`,
+    )
+  } catch (err) {
+    result.errors.push(err.message)
+    console.warn(`   ⚠️ ${err.message}`)
+  }
 
-  return { fearGreed, ahr999, mayer, fourYear }
+  return result
 }

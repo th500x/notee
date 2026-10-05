@@ -102,6 +102,57 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
     return `${sign}${score}分`
   }
 
+  const hasValue = (value) => value !== null && value !== undefined && !Number.isNaN(Number(value))
+
+  const fearGreedLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 20) return '极度恐惧'
+    if (v <= 40) return '恐惧'
+    if (v <= 60) return '中性'
+    if (v <= 80) return '贪婪'
+    return '极度贪婪'
+  }
+  const mayerLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 0.8) return '极度低估'
+    if (v <= 0.9) return '低估'
+    if (v <= 1.1) return '中性'
+    if (v <= 1.2) return '高估'
+    return '极度高估'
+  }
+  const ahrLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 0.4) return '抄底区间'
+    if (v <= 0.8) return '定投区间'
+    if (v <= 1.2) return '观望区间'
+    if (v <= 1.6) return '谨慎区间'
+    return '风险区间'
+  }
+  const fourYearLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 1.6) return '极度低估'
+    if (v <= 1.8) return '低估'
+    if (v <= 2.0) return '中性'
+    if (v <= 2.2) return '高估'
+    return '极度高估'
+  }
+  const fedLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 1.5) return '极度宽松'
+    if (v <= 2.5) return '宽松'
+    if (v <= 3.5) return '中性'
+    if (v <= 4.5) return '紧缩'
+    return '极度紧缩'
+  }
+  const bojLabel = (v) => {
+    if (!hasValue(v)) return '--'
+    if (v <= 0) return '极度宽松'
+    if (v <= 1) return '宽松'
+    if (v <= 2) return '中性'
+    if (v <= 3) return '紧缩'
+    return '极度紧缩'
+  }
+
   // 获取评分颜色类名
   const getScoreColorClass = (score) => {
     if (score === null || score === undefined) return 'text-gray-500'
@@ -250,10 +301,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.fearGreedIndex <= 20 ? '极度恐惧' : 
-               weeklyData.fearGreedIndex <= 40 ? '恐惧' :
-               weeklyData.fearGreedIndex <= 60 ? '中性' :
-               weeklyData.fearGreedIndex <= 80 ? '贪婪' : '极度贪婪'}
+              {fearGreedLabel(weeklyData.fearGreedIndex)}
             </div>
             {calculateScore('fearGreedIndex', weeklyData.fearGreedIndex) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('fearGreedIndex', weeklyData.fearGreedIndex))}`}>
@@ -274,10 +322,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.mayerMultiple <= 0.8 ? '极度低估' : 
-               weeklyData.mayerMultiple <= 0.9 ? '低估' :
-               weeklyData.mayerMultiple <= 1.1 ? '中性' :
-               weeklyData.mayerMultiple <= 1.2 ? '高估' : '极度高估'}
+              {mayerLabel(weeklyData.mayerMultiple)}
             </div>
             {calculateScore('mayerMultiple', weeklyData.mayerMultiple) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('mayerMultiple', weeklyData.mayerMultiple))}`}>
@@ -298,10 +343,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.ahr999 <= 0.4 ? '抄底区间' : 
-               weeklyData.ahr999 <= 0.8 ? '定投区间' :
-               weeklyData.ahr999 <= 1.2 ? '观望区间' :
-               weeklyData.ahr999 <= 1.6 ? '谨慎区间' : '风险区间'}
+              {ahrLabel(weeklyData.ahr999)}
             </div>
             {calculateScore('ahr999', weeklyData.ahr999) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('ahr999', weeklyData.ahr999))}`}>
@@ -322,10 +364,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.btcFourYearIndex <= 1.6 ? '极度低估' : 
-               weeklyData.btcFourYearIndex <= 1.8 ? '低估' :
-               weeklyData.btcFourYearIndex <= 2.0 ? '中性' :
-               weeklyData.btcFourYearIndex <= 2.2 ? '高估' : '极度高估'}
+              {fourYearLabel(weeklyData.btcFourYearIndex)}
             </div>
             {calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('btcFourYearIndex', weeklyData.btcFourYearIndex))}`}>
@@ -348,10 +387,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.fedRate <= 1.5 ? '极度宽松' :
-               weeklyData.fedRate <= 2.5 ? '宽松' :
-               weeklyData.fedRate <= 3.5 ? '中性' :
-               weeklyData.fedRate <= 4.5 ? '紧缩' : '极度紧缩'}
+              {fedLabel(weeklyData.fedRate)}
             </div>
             {calculateScore('fedRate', weeklyData.fedRate) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('fedRate', weeklyData.fedRate))}`}>
@@ -374,10 +410,7 @@ function DataDisplay({ selectedWeek, weeklyData, t0Must = null, t1Recommend = nu
           </div>
           <div className="flex items-center justify-between mt-1">
             <div className="text-xs text-gray-500">
-              {weeklyData.bojRate <= 0 ? '极度宽松' :
-               weeklyData.bojRate <= 1 ? '宽松' :
-               weeklyData.bojRate <= 2 ? '中性' :
-               weeklyData.bojRate <= 3 ? '紧缩' : '极度紧缩'}
+              {bojLabel(weeklyData.bojRate)}
             </div>
             {calculateScore('bojRate', weeklyData.bojRate) !== null && (
               <div className={`text-sm font-medium ${getScoreColorClass(calculateScore('bojRate', weeklyData.bojRate))}`}>

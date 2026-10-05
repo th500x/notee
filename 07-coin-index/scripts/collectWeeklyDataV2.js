@@ -381,6 +381,7 @@ const collectWeekData = async (weekId, startDate, endDate, allExistingData = {})
     }
 
     const prior = dataCheck.existingData || {}
+    // 情绪/利率不写占位默认值；有真值才带上，缺省由后续步骤写入或页面显示 --
     const weekData = {
       weekId,
       year: startDate.getFullYear(),
@@ -390,15 +391,8 @@ const collectWeekData = async (weekId, startDate, endDate, allExistingData = {})
       btcWeeklyChange,
       btcWeeklyAvgPrice: btcData.average,
       ethWeeklyAvgPrice: ethData.average,
-      fearGreedIndex: prior.fearGreedIndex ?? 50,
-      mayerMultiple: prior.mayerMultiple ?? 1.5,
-      ahr999: prior.ahr999 ?? 1.0,
       ethBtcRatio,
       btcFromATH: calculateBTCFromATH(btcData.average),
-      btcFourYearIndex: prior.btcFourYearIndex ?? 0.8,
-      fedRate: prior.fedRate,
-      bojRate: prior.bojRate,
-      personalRating: prior.personalRating ?? 3,
       marketTrend: btcWeeklyChange >= 0 ? 'bullish' : 'bearish',
       updatedAt: new Date().toISOString(),
       dataSource: 'coingecko_api_v2_incremental',
@@ -409,6 +403,23 @@ const collectWeekData = async (weekId, startDate, endDate, allExistingData = {})
         weeklyChangeData,
         ratioData,
       },
+    }
+    for (const field of [
+      'fearGreedIndex',
+      'mayerMultiple',
+      'ahr999',
+      'btcFourYearIndex',
+      'fedRate',
+      'bojRate',
+      'personalRating',
+      'sentimentSource',
+      'macroSource',
+      'indicatorScores',
+      'totalScore',
+    ]) {
+      if (prior[field] !== undefined && prior[field] !== null) {
+        weekData[field] = prior[field]
+      }
     }
 
     console.log(`✅ ${weekId} 数据收集完成`)

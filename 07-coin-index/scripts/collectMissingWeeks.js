@@ -75,8 +75,9 @@ function runScript(args) {
 
 function refreshProvisionalMacro(weeks) {
   for (const week of weeks) {
-    console.log(`\n${'#'.repeat(60)}\n# ${week.id} 重取利率\n${'#'.repeat(60)}`)
-    const status = runScript(['scripts/fetchMacroRates.js', `--week=${week.id}`])
+    console.log(`\n${'#'.repeat(60)}\n# ${week.id} 重取利率（定稿）\n${'#'.repeat(60)}`)
+    // --finalize：只拉该周真实利率，不用「复用上周」模式
+    const status = runScript(['scripts/fetchMacroRates.js', `--week=${week.id}`, '--finalize'])
     if (status !== 0) throw new Error(`${week.id} 重取利率失败 (exit ${status})`)
   }
   const status = runScript(['scripts/recalculateRatings.js'])

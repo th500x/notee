@@ -1,7 +1,7 @@
 /**
  * 自动拉取恐惧&贪婪 + Ahr999 + 梅耶倍数 + BTC四年指数 并写入 weeklyData.json
+ * 单项缺失不写占位默认值（页面显示 --）；有成功项则写入并 exit 0，便于后续利率步骤继续。
  * node scripts/fetchSentimentIndicators.js --week=2026-W06
- * node scripts/fetchSentimentIndicators.js          # 默认：上一完整周
  */
 import { resolveWeekById, getLastCompletedWeek } from './lib/weekSchedule.js'
 import { loadWeeklyData, saveWeeklyData } from './lib/weeklyDataStore.js'
@@ -32,10 +32,19 @@ async function main() {
 
   console.log(`\n=== 情绪指标自动采集 · ${week.id} (${weekStart} – ${weekEnd}) ===\n`)
 
-  const { fearGreed, ahr999, mayer, fourYear } = await fetchWeekSentiment(week.startDate, week.endDate)
+  const { fearGreed, ahr999, mayer, fourYear, errors } = await fetchWeekSentiment(
+    week.startDate,
+    week.endDate,
+  )
+
+  const wroteAny = Boolean(fearGreed || ahr999 || mayer || fourYear)
+  if (!wroteAny) {
+    throw new Error(`情绪指标全部失败: ${errors.join('；') || '未知'}`)
+  }
 
   if (dryRun) {
     console.log('\n🏁 --dry-run：未写入文件')
+    if (errors.length) console.log(`⚠️ 部分失败: ${errors.join('；')}`)
     return
   }
 
@@ -48,52 +57,72 @@ async function main() {
     weekEnd,
   }
 
-  data[week.id] = {
+  const next = {
     ...existing,
     weekStart: existing.weekStart || weekStart,
     weekEnd: existing.weekEnd || weekEnd,
-    fearGreedIndex: fearGreed.weeklyAverage,
-    mayerMultiple: mayer.weeklyAverage,
-    ahr999: ahr999.value,
-    btcFourYearIndex: fourYear.weeklyAverage,
     updatedAt: new Date().toISOString(),
     sentimentSource: {
-      fearGreed: fearGreed.source,
-      mayer: mayer.source,
-      fourYear: fourYear.source,
-      ahr999: ahr999.source,
+      ...(existing.sentimentSource || {}),
       fetchedAt: new Date().toISOString(),
+      errors: errors.length ? errors : undefined,
     },
     rawData: {
       ...(existing.rawData || {}),
-      fearGreed: {
-        weeklyAverage: fearGreed.weeklyAverage,
-        daily: fearGreed.daily,
-      },
-      mayer: {
-        weeklyAverage: mayer.weeklyAverage,
-        weekEndDate: mayer.weekEndDate,
-        weekEndValue: mayer.weekEndValue,
-        daily: mayer.daily,
-      },
-      btcFourYearIndex: {
-        weeklyAverage: fourYear.weeklyAverage,
-        weekEndDate: fourYear.weekEndDate,
-        weekEndValue: fourYear.weekEndValue,
-        windowDays: fourYear.windowDays,
-        daily: fourYear.daily,
-      },
-      ahr999: {
-        date: ahr999.date,
-        value: ahr999.value,
-      },
     },
   }
 
+  if (fearGreed) {
+    next.fearGreedIndex = fearGreed.weeklyAverage
+    next.sentimentSource.fearGreed = fearGreed.source
+    next.rawData.fearGreed = {
+      weeklyAverage: fearGreed.weeklyAverage,
+      daily: fearGreed.daily,
+    }
+  }
+  if (mayer) {
+    next.mayerMultiple = mayer.weeklyAverage
+    next.sentimentSource.mayer = mayer.source
+    next.rawData.mayer = {
+      weeklyAverage: mayer.weeklyAverage,
+      weekEndDate: mayer.weekEndDate,
+      weekEndValue: mayer.weekEndValue,
+      daily: mayer.daily,
+    }
+  }
+  if (fourYear) {
+    next.btcFourYearIndex = fourYear.weeklyAverage
+    next.sentimentSource.fourYear = fourYear.source
+    next.rawData.btcFourYearIndex = {
+      weeklyAverage: fourYear.weeklyAverage,
+      weekEndDate: fourYear.weekEndDate,
+      weekEndValue: fourYear.weekEndValue,
+      windowDays: fourYear.windowDays,
+      daily: fourYear.daily,
+    }
+  }
+  if (ahr999) {
+    next.ahr999 = ahr999.value
+    next.sentimentSource.ahr999 = ahr999.source
+    next.rawData.ahr999 = {
+      date: ahr999.date,
+      value: ahr999.value,
+    }
+  }
+
+  data[week.id] = next
   saveWeeklyData(data)
-  console.log(
-    `\n✅ 已写入 ${week.id}: 恐惧&贪婪=${fearGreed.weeklyAverage}, 梅耶=${mayer.weeklyAverage}, 四年=${fourYear.weeklyAverage}, Ahr999=${ahr999.value}`,
-  )
+
+  const parts = [
+    fearGreed ? `恐惧&贪婪=${fearGreed.weeklyAverage}` : '恐惧&贪婪=--',
+    mayer ? `梅耶=${mayer.weeklyAverage}` : '梅耶=--',
+    fourYear ? `四年=${fourYear.weeklyAverage}` : '四年=--',
+    ahr999 ? `Ahr999=${ahr999.value}` : 'Ahr999=--',
+  ]
+  console.log(`\n✅ 已写入 ${week.id}: ${parts.join(', ')}`)
+  if (errors.length) {
+    console.log(`⚠️ 部分未取到（不写占位，页面显示 --）: ${errors.join('；')}`)
+  }
   console.log('💡 若需重算 personalRating，请运行: npm run recalc-ratings')
 }
 

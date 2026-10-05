@@ -8,57 +8,71 @@ const calculatePersonalRating = (weekData) => {
   try {
     const scores = {}
     
+    const hasNum = (v) => v !== undefined && v !== null && !Number.isNaN(Number(v))
+
     // 1. BTC周涨跌幅评分
     const btcChange = weekData.btcWeeklyChange
-    if (btcChange <= -20) scores.btcWeeklyChange = 2
-    else if (btcChange <= -10) scores.btcWeeklyChange = 1
-    else if (btcChange <= 10) scores.btcWeeklyChange = 0
-    else if (btcChange <= 20) scores.btcWeeklyChange = -1
-    else scores.btcWeeklyChange = -2
+    if (hasNum(btcChange)) {
+      if (btcChange <= -20) scores.btcWeeklyChange = 2
+      else if (btcChange <= -10) scores.btcWeeklyChange = 1
+      else if (btcChange <= 10) scores.btcWeeklyChange = 0
+      else if (btcChange <= 20) scores.btcWeeklyChange = -1
+      else scores.btcWeeklyChange = -2
+    }
     
     // 2. BTC距ATH回撤评分
     const btcFromATH = weekData.btcFromATH
-    if (btcFromATH <= -40) scores.btcFromATH = 2
-    else if (btcFromATH <= -20) scores.btcFromATH = 1
-    else if (btcFromATH <= 20) scores.btcFromATH = 0
-    else if (btcFromATH <= 40) scores.btcFromATH = -1
-    else scores.btcFromATH = -2
+    if (hasNum(btcFromATH)) {
+      if (btcFromATH <= -40) scores.btcFromATH = 2
+      else if (btcFromATH <= -20) scores.btcFromATH = 1
+      else if (btcFromATH <= 20) scores.btcFromATH = 0
+      else if (btcFromATH <= 40) scores.btcFromATH = -1
+      else scores.btcFromATH = -2
+    }
     
-    // 3. 恐惧&贪婪指数评分
+    // 3. 恐惧&贪婪指数评分（缺值不计分，不按占位默认）
     const fearGreed = weekData.fearGreedIndex
-    if (fearGreed <= 20) scores.fearGreedIndex = 2
-    else if (fearGreed <= 40) scores.fearGreedIndex = 1
-    else if (fearGreed <= 60) scores.fearGreedIndex = 0
-    else if (fearGreed <= 80) scores.fearGreedIndex = -1
-    else scores.fearGreedIndex = -2
+    if (hasNum(fearGreed)) {
+      if (fearGreed <= 20) scores.fearGreedIndex = 2
+      else if (fearGreed <= 40) scores.fearGreedIndex = 1
+      else if (fearGreed <= 60) scores.fearGreedIndex = 0
+      else if (fearGreed <= 80) scores.fearGreedIndex = -1
+      else scores.fearGreedIndex = -2
+    }
     
     // 4. 梅耶倍数评分
     const mayer = weekData.mayerMultiple
-    if (mayer <= 0.8) scores.mayerMultiple = 2
-    else if (mayer <= 0.9) scores.mayerMultiple = 1
-    else if (mayer <= 1.1) scores.mayerMultiple = 0
-    else if (mayer <= 1.2) scores.mayerMultiple = -1
-    else scores.mayerMultiple = -2
+    if (hasNum(mayer)) {
+      if (mayer <= 0.8) scores.mayerMultiple = 2
+      else if (mayer <= 0.9) scores.mayerMultiple = 1
+      else if (mayer <= 1.1) scores.mayerMultiple = 0
+      else if (mayer <= 1.2) scores.mayerMultiple = -1
+      else scores.mayerMultiple = -2
+    }
     
     // 5. Ahr999指标评分
     const ahr = weekData.ahr999
-    if (ahr <= 0.4) scores.ahr999 = 2
-    else if (ahr <= 0.8) scores.ahr999 = 1
-    else if (ahr <= 1.2) scores.ahr999 = 0
-    else if (ahr <= 1.6) scores.ahr999 = -1
-    else scores.ahr999 = -2
+    if (hasNum(ahr)) {
+      if (ahr <= 0.4) scores.ahr999 = 2
+      else if (ahr <= 0.8) scores.ahr999 = 1
+      else if (ahr <= 1.2) scores.ahr999 = 0
+      else if (ahr <= 1.6) scores.ahr999 = -1
+      else scores.ahr999 = -2
+    }
     
     // 6. BTC四年指数评分
     const fourYear = weekData.btcFourYearIndex
-    if (fourYear <= 1.6) scores.btcFourYearIndex = 2
-    else if (fourYear <= 1.8) scores.btcFourYearIndex = 1
-    else if (fourYear <= 2.0) scores.btcFourYearIndex = 0
-    else if (fourYear <= 2.2) scores.btcFourYearIndex = -1
-    else scores.btcFourYearIndex = -2
+    if (hasNum(fourYear)) {
+      if (fourYear <= 1.6) scores.btcFourYearIndex = 2
+      else if (fourYear <= 1.8) scores.btcFourYearIndex = 1
+      else if (fourYear <= 2.0) scores.btcFourYearIndex = 0
+      else if (fourYear <= 2.2) scores.btcFourYearIndex = -1
+      else scores.btcFourYearIndex = -2
+    }
     
     // 7. 美联储利率评分
     const fedRate = weekData.fedRate
-    if (fedRate !== undefined && fedRate !== null) {
+    if (hasNum(fedRate)) {
       if (fedRate <= 1.5) scores.fedRate = 2
       else if (fedRate <= 2.5) scores.fedRate = 1
       else if (fedRate <= 3.5) scores.fedRate = 0
@@ -68,7 +82,7 @@ const calculatePersonalRating = (weekData) => {
     
     // 8. 日央行利率评分
     const bojRate = weekData.bojRate
-    if (bojRate !== undefined && bojRate !== null) {
+    if (hasNum(bojRate)) {
       if (bojRate <= 0) scores.bojRate = 2
       else if (bojRate <= 1) scores.bojRate = 1
       else if (bojRate <= 2) scores.bojRate = 0
@@ -117,7 +131,10 @@ const main = () => {
       // 显示变化
       if (oldRating !== totalScore) {
         console.log(`📊 ${weekId}: ${oldRating} → ${totalScore} (${totalScore > oldRating ? '+' : ''}${totalScore - oldRating})`)
-        console.log(`   各指标: BTC涨跌=${scores.btcWeeklyChange} ATH=${scores.btcFromATH} 恐惧=${scores.fearGreedIndex} 梅耶=${scores.mayerMultiple} Ahr=${scores.ahr999} 四年=${scores.btcFourYearIndex} 美联储=${scores.fedRate || 'N/A'} 日央行=${scores.bojRate || 'N/A'}`)
+        const show = (v) => (v === undefined || v === null ? 'N/A' : v)
+        console.log(
+          `   各指标: BTC涨跌=${show(scores.btcWeeklyChange)} ATH=${show(scores.btcFromATH)} 恐惧=${show(scores.fearGreedIndex)} 梅耶=${show(scores.mayerMultiple)} Ahr=${show(scores.ahr999)} 四年=${show(scores.btcFourYearIndex)} 美联储=${show(scores.fedRate)} 日央行=${show(scores.bojRate)}`,
+        )
       } else {
         console.log(`✓ ${weekId}: ${totalScore} (无变化)`)
       }

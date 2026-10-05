@@ -26,12 +26,12 @@ const MANUAL_FIELDS = [
   'totalScore',
 ]
 
-const COLLECTOR_DEFAULTS = {
+/** 历史占位（已停用）：合并时若仅见这些值且无来源字段，视为无效不保留 */
+const LEGACY_PLACEHOLDERS = {
   fearGreedIndex: 50,
   mayerMultiple: 1.5,
   ahr999: 1.0,
   btcFourYearIndex: 0.8,
-  personalRating: 3,
 }
 
 export function loadWeeklyData() {
@@ -45,7 +45,14 @@ export function loadWeeklyData() {
   return data
 }
 
-/** 合并单周：只更新价格/API 字段，保留已填写的手工指标 */
+function isLegacyPlaceholder(field, value, week) {
+  if (LEGACY_PLACEHOLDERS[field] === undefined) return false
+  if (value !== LEGACY_PLACEHOLDERS[field]) return false
+  // 无 sentimentSource 时，这些默认数字视为历史占位，合并时丢弃
+  return !week?.sentimentSource
+}
+
+/** 合并单周：只更新价格/API 字段，保留已填写的真值指标（不保留历史占位默认值） */
 export function mergeWeekRecord(existingWeek, incomingWeek) {
   if (!existingWeek) return incomingWeek
 
@@ -54,17 +61,16 @@ export function mergeWeekRecord(existingWeek, incomingWeek) {
   for (const field of MANUAL_FIELDS) {
     const prev = existingWeek[field]
     if (prev === undefined || prev === null) continue
-    const isDefaultPlaceholder =
-      COLLECTOR_DEFAULTS[field] !== undefined && prev === COLLECTOR_DEFAULTS[field]
-    if (!isDefaultPlaceholder || field === 'fedRate' || field === 'bojRate') {
+    if (isLegacyPlaceholder(field, prev, existingWeek)) continue
+    if (incomingWeek[field] === undefined || incomingWeek[field] === null) {
       merged[field] = prev
     }
   }
 
-  if (existingWeek.indicatorScores && incomingWeek.indicatorScores) {
+  if (existingWeek.indicatorScores && !incomingWeek.indicatorScores) {
     merged.indicatorScores = existingWeek.indicatorScores
     merged.totalScore = existingWeek.totalScore
-    merged.personalRating = existingWeek.personalRating
+    if (existingWeek.personalRating != null) merged.personalRating = existingWeek.personalRating
   }
 
   return merged
