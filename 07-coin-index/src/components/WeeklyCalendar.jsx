@@ -106,7 +106,7 @@ function WeeklyCalendar({
           <span>极度看多 (≥10★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-400"></div>
+          <div className="week-indicator week-indicator--bullish" style={{ width: 12, height: 12 }}></div>
           <span>看多 (4–9★)</span>
         </div>
         <div className="flex items-center gap-2">

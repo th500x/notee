@@ -1,12 +1,14 @@
 /**
  * 个人评级分档与配色（全站统一）
  *
- * | 总分范围      | 档位           | 文字色 Tailwind   | 日历点 CSS 修饰符      |
- * | +10 ~ +16    | 极度看多       | text-green-600   | extreme-bullish（正绿） |
- * | +4 ~ +9      | 看多           | text-green-400   | bullish（淡绿）       |
- * | -3 ~ +3      | 中性           | text-gray-900    | neutral               |
- * | -9 ~ -4      | 看空           | text-red-400     | bearish（淡红）       |
- * | -16 ~ -10    | 极度看空       | text-red-800     | extreme-bearish       |
+ * | 总分范围      | 档位           | 文字色 Tailwind     | 日历点 CSS 修饰符      |
+ * | +10 ~ +16    | 极度看多       | text-green-600     | extreme-bullish（正绿） |
+ * | +4 ~ +9      | 看多           | text-emerald-600   | bullish（金叉同款薄荷绿底 #ecfdf5） |
+ * | -3 ~ +3      | 中性           | text-gray-900      | neutral               |
+ * | -9 ~ -4      | 看空           | text-red-400       | bearish（淡红）       |
+ * | -16 ~ -10    | 极度看空       | text-red-800       | extreme-bearish       |
+ *
+ * 看多底色与订阅区/操作记录「金叉」行共用 `--eth-tone-golden-bg`（见 App.css）。
  */
 import { RATING_LEVELS } from '../constants'
 
@@ -20,7 +22,7 @@ export const RATING_TIERS = {
 
 const TIER_TEXT_CLASS = {
   [RATING_TIERS.EXTREME_BULLISH]: 'text-green-600',
-  [RATING_TIERS.BULLISH]: 'text-green-400',
+  [RATING_TIERS.BULLISH]: 'text-emerald-600',
   [RATING_TIERS.NEUTRAL]: 'text-gray-900',
   [RATING_TIERS.BEARISH]: 'text-red-400',
   [RATING_TIERS.EXTREME_BEARISH]: 'text-red-800',

@@ -276,12 +276,16 @@ function EthMaTradeLogPanel({ accountId }) {
     if (ok && editingKey === tradeKey(trade)) closeForm()
   }
 
-  const rowTone = (signal) => {
+  /** 已记行：手填收益恰好 0 → 灰底；否则随金叉/死叉。待记只看信号方向。 */
+  const rowTone = (signal, trade) => {
+    if (trade && trade.pnl != null && Number(trade.pnl) === 0) return 'flat'
     if (!signal) return 'neutral'
     if (signal.cross === 'golden' || signal.bias === 'long') return 'golden'
     if (signal.cross === 'death' || signal.bias === 'short') return 'death'
     return 'neutral'
   }
+
+  const signalTone = (signal) => rowTone(signal, null)
 
   return (
     <div className="eth-ma-trade-log">
@@ -304,7 +308,7 @@ function EthMaTradeLogPanel({ accountId }) {
             ) : (
               <ul className="eth-ma-trade-log__list">
                 {pendingSignals.map((signal) => (
-                  <li key={signalKey(signal)} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${rowTone(signal)}`}>
+                  <li key={signalKey(signal)} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${signalTone(signal)}`}>
                     <span>{signalLine(signal)}</span>
                     <button
                       type="button"
@@ -342,15 +346,27 @@ function EthMaTradeLogPanel({ accountId }) {
                         pnlTotal={monthGroup.pnlTotal}
                       />
                       <ul className="eth-ma-trade-log__list">
-                        {monthGroup.trades.map((trade) => (
-                          <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${rowTone(trade.signal)}`}>
+                        {monthGroup.trades.map((trade) => {
+                          const tone = rowTone(trade.signal, trade)
+                          const pnlUnfilled = trade.pnl == null
+                          const editClass = [
+                            'eth-ma-subscribe__btn',
+                            'eth-ma-subscribe__btn--ghost',
+                            pnlUnfilled && tone !== 'flat' && tone !== 'neutral'
+                              ? `eth-ma-trade-log__edit--unfilled eth-ma-trade-log__edit--${tone}`
+                              : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')
+                          return (
+                          <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${tone}`}>
                             <span>
                               {signalLine(trade.signal)}
                               {` · 买 ${formatEthPrice(trade.entryPrice)} × ${trade.quantity}`}
                               {trade.pnl != null ? ` · 收益 ${formatPnl(trade.pnl)}` : ''}
                             </span>
                             <span className="eth-ma-trade-log__row-actions">
-                              <button type="button" className="eth-ma-subscribe__btn eth-ma-subscribe__btn--ghost" disabled={busy} onClick={() => openEdit(trade)}>
+                              <button type="button" className={editClass} disabled={busy} onClick={() => openEdit(trade)}>
                                 改
                               </button>
                               <button type="button" className="eth-ma-subscribe__link" disabled={busy} onClick={() => handleDelete(trade)}>
@@ -358,7 +374,8 @@ function EthMaTradeLogPanel({ accountId }) {
                               </button>
                             </span>
                           </li>
-                        ))}
+                          )
+                        })}
                       </ul>
                     </details>
                   ))}
