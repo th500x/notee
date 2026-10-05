@@ -9,7 +9,7 @@ import YearSummary from './components/YearSummary'
 import { useWeeklyData, useYearlyData, useSelectedWeekData } from './hooks/useWeeklyData'
 import { useCurrentWeek } from './hooks/useCurrentWeek'
 import { useLifeResumeAuth } from './hooks/useLifeResumeAuth'
-import { getConfiguredYearRange } from './utils/weekCalculator'
+import { getConfiguredYearRange, getWeeksInYear } from './utils/weekCalculator'
 import { computeT0MustMap } from './utils/t0Must'
 import { computeT1RecommendMap } from './utils/t1Recommend'
 
@@ -40,13 +40,12 @@ function App() {
   const minYear = yearRange.min
   const maxYear = yearRange.max
 
-  // 设置初始选中周；跨年周时把展示年对齐到周所属年
+  // 仅首次：对齐到「今天所在周」；勿在 selectedWeek 被清空时再跑，否则会把手动切年拽回本周年份
   useEffect(() => {
-    if (!selectedWeek && currentWeekId) {
-      setSelectedWeek(currentWeekId)
-      const match = /^(\d{4})-W\d{2}$/.exec(currentWeekId)
-      if (match) setCurrentYear(Number(match[1]))
-    }
+    if (selectedWeek || !currentWeekId) return
+    setSelectedWeek(currentWeekId)
+    const match = /^(\d{4})-W\d{2}$/.exec(currentWeekId)
+    if (match) setCurrentYear(Number(match[1]))
   }, [selectedWeek, currentWeekId])
 
   // 处理周切换
@@ -56,12 +55,13 @@ function App() {
 
   // 处理年份切换
   const handleYearChange = (year) => {
-    // 限制在年份范围内
     if (year < minYear || year > maxYear) {
       return
     }
     setCurrentYear(year)
-    setSelectedWeek(null) // 清除选中的周，让useEffect重新设置
+    // 选中该年第一周；若置 null，上方 effect 会用「本周」把年份改回去（切换闪一下）
+    const weeks = getWeeksInYear(year)
+    setSelectedWeek(weeks[0]?.id ?? null)
   }
 
   // 加载中状态

@@ -102,23 +102,23 @@ function WeeklyCalendar({
 
       <div className="mt-4 text-xs text-gray-500 space-y-1">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-600"></div>
+          <div className="week-indicator week-indicator--legend week-indicator--extreme-bullish"></div>
           <span>极度看多 (≥10★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="week-indicator week-indicator--bullish" style={{ width: 12, height: 12 }}></div>
+          <div className="week-indicator week-indicator--legend week-indicator--bullish"></div>
           <span>看多 (4–9★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-gray-700"></div>
+          <div className="week-indicator week-indicator--legend week-indicator--neutral"></div>
           <span>中性 (-3–3★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-400"></div>
+          <div className="week-indicator week-indicator--legend week-indicator--bearish"></div>
           <span>看空 (-9–-4★)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-red-800"></div>
+          <div className="week-indicator week-indicator--legend week-indicator--extreme-bearish"></div>
           <span>极度看空 (≤-10★)</span>
         </div>
         <div className="flex items-center gap-2 pt-1">

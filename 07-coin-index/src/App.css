@@ -58,25 +58,37 @@
 }
 
 .week-indicator--extreme-bullish {
-  background-color: #16a34a; /* green-600 正绿 · 极度看多（与淡绿看多、灰中性易区分） */
+  background-color: #16a34a; /* green-600 正绿 · 极度看多 */
 }
 
+/* 看多：空心圆，描边取金叉同系绿（底色家族与 --eth-tone-golden-bg 一致） */
 .week-indicator--bullish {
-  /* 与订阅区/操作记录金叉底色对齐；细描边保证白底周历上仍可辨 */
-  background-color: var(--eth-tone-golden-bg);
-  box-shadow: inset 0 0 0 1px #86efac;
+  background-color: transparent;
+  box-sizing: border-box;
+  border: 1.5px solid #86efac;
 }
 
 .week-indicator--neutral {
   background-color: #374151; /* gray-700 · 中性 */
 }
 
+/* 看空：空心圆，描边取死叉同系红（底色家族与 --eth-tone-death-bg 一致） */
 .week-indicator--bearish {
-  background-color: #f87171; /* red-400 淡红 · 看空 */
+  background-color: transparent;
+  box-sizing: border-box;
+  border: 1.5px solid #fca5a5;
 }
 
 .week-indicator--extreme-bearish {
   background-color: #991b1b; /* red-800 深红 · 极度看空 */
+}
+
+/* 图例用：取消 absolute，避免圆点飞出文档流（看起来像「没圆」） */
+.week-indicator--legend {
+  position: static;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
 }
 
 /* T0「必」徽章 · 周历右上角，颜色与评级圆点一致 */
@@ -121,8 +133,9 @@
 }
 
 .week-t0-must--bearish {
-  color: #f87171 !important;
-  border-color: #f87171;
+  color: var(--eth-tone-death-fg) !important;
+  border-color: #fca5a5;
+  background-color: var(--eth-tone-death-bg);
 }
 
 .week-t0-must--extreme-bearish {

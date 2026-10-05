@@ -3,9 +3,9 @@
  *
  * | 总分范围      | 档位           | 文字色 Tailwind     | 日历点 CSS 修饰符      |
  * | +10 ~ +16    | 极度看多       | text-green-600     | extreme-bullish（正绿） |
- * | +4 ~ +9      | 看多           | text-emerald-600   | bullish（金叉同款薄荷绿底 #ecfdf5） |
+ * | +4 ~ +9      | 看多           | text-emerald-600   | bullish（空心圆 · 金叉绿系描边） |
  * | -3 ~ +3      | 中性           | text-gray-900      | neutral               |
- * | -9 ~ -4      | 看空           | text-red-400       | bearish（淡红）       |
+ * | -9 ~ -4      | 看空           | text-red-400       | bearish（空心圆 · 死叉红系描边） |
  * | -16 ~ -10    | 极度看空       | text-red-800       | extreme-bearish       |
  *
  * 看多底色与订阅区/操作记录「金叉」行共用 `--eth-tone-golden-bg`（见 App.css）。
