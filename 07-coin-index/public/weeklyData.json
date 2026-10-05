@@ -14093,5 +14093,82 @@
     "totalScore": 1,
     "t0Must": null,
     "t1Recommend": null
+  },
+  "2026-W39": {
+    "weekId": "2026-W39",
+    "year": 2026,
+    "weekNumber": 39,
+    "weekStart": "2026-09-28",
+    "weekEnd": "2026-10-04",
+    "btcWeeklyChange": -0.33,
+    "btcWeeklyAvgPrice": 84176.45,
+    "ethWeeklyAvgPrice": 2685.38,
+    "fearGreedIndex": 50,
+    "mayerMultiple": 1.5,
+    "ahr999": 1,
+    "ethBtcRatio": 0.031706,
+    "btcFromATH": -33.2,
+    "btcFourYearIndex": 0.8,
+    "personalRating": 3,
+    "marketTrend": "bearish",
+    "updatedAt": "2026-10-05T00:12:52.684Z",
+    "dataSource": "coingecko_api_v2_incremental",
+    "rawData": {
+      "btc": {
+        "average": 84176.45,
+        "prices": [
+          84448.75015162026,
+          83479.2543356063,
+          83640.10160067653,
+          83576.13460018387,
+          84841.66634358242,
+          84506.46895963937,
+          84742.78638478836
+        ],
+        "dates": [
+          "2026-09-28",
+          "2026-09-29",
+          "2026-09-30",
+          "2026-10-01",
+          "2026-10-02",
+          "2026-10-03",
+          "2026-10-04"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "eth": {
+        "average": 2685.38,
+        "prices": [
+          2687.5352894478456,
+          2687.921688219616,
+          2677.3845041515556,
+          2684.708553282074,
+          2705.2959032354674,
+          2667.9504418816,
+          2686.891434728346
+        ],
+        "dates": [
+          "2026-09-28",
+          "2026-09-29",
+          "2026-09-30",
+          "2026-10-01",
+          "2026-10-02",
+          "2026-10-03",
+          "2026-10-04"
+        ],
+        "dataPoints": 7,
+        "isComplete": true
+      },
+      "weeklyChangeData": {
+        "currentWeekAvg": 84176.45,
+        "previousWeekId": "2026-W38",
+        "weeklyChange": -0.33
+      },
+      "ratioData": {
+        "calculationDate": "2026-10-04",
+        "ethBtcRatio": 0.031706
+      }
+    }
   }
 }
