@@ -2,6 +2,8 @@
  * 将周指标信号投递到 00（落库 + 按 Plan A/B 推送）。
  *
  * 默认只处理「上一完整周」，避免历史周被刷推。
+ * 该周必填指标（含 Ahr999、利率等）缺任一项时不判定、不投递；
+ * 采齐后的下一轮才会落库并推送（未投递则 broadcast_done 仍为未推）。
  *
  *   node scripts/notifyEthWeekSignals.js
  *   node scripts/notifyEthWeekSignals.js --weeks=2026-W39,2026-W40
@@ -13,6 +15,7 @@
  */
 
 import { loadWeeklyData } from './lib/weeklyDataStore.js'
+import { listMissingRequiredFields } from './lib/weekCompleteness.js'
 import { getLastCompletedWeek } from './lib/weekSchedule.js'
 import { computeT0MustMap } from '../src/utils/t0Must.js'
 import { computeT1RecommendMap } from '../src/utils/t1Recommend.js'
@@ -91,8 +94,9 @@ async function main() {
       console.warn(`跳过 ${weekId}：weeklyData 无此周`)
       continue
     }
-    if (typeof week.personalRating !== 'number') {
-      console.warn(`跳过 ${weekId}：无 personalRating`)
+    const missing = listMissingRequiredFields(week)
+    if (missing.length > 0) {
+      console.log(`${weekId}: 指标未齐（缺 ${missing.join(', ')}），本轮不判定、不通知`)
       continue
     }
     const payload = buildPayload(weekId, week, t0Map, t1Map)

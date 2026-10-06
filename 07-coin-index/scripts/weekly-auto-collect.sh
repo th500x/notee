@@ -44,7 +44,8 @@ if ! GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyC
 fi
 git fetch -q origin main
 
-# 周指标推送（Plan A/B）；密钥读 00 后端 .env。失败不阻断采数成功（systemd 仍看 collect_status）
+# 周指标推送（Plan A/B）：脚本内缺任一必填指标则跳过，采齐后的下一轮才判定。
+# 密钥读 00 后端 .env。失败不阻断采数成功（systemd 仍看 collect_status）
 if [ -f "$REPO/08-life-resume/backend/.env" ]; then
   set -a
   # shellcheck disable=SC1091
