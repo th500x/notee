@@ -576,7 +576,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose })
                 <>模拟演练策略共执行{summaryData.simulation.totalTrades}次交易，胜率{formatPercent(summaryData.simulation.winRate)}，
                 总盈亏${formatNumber(summaryData.simulation.totalProfit)}。</>
               )}
-              本年保证金安全线${formatNumber(summaryData.simulation.marginSafety)}。（多单按 ETH 1000USD，空单按 ETH 5000USD。）
+              本年保证金安全线${formatNumber(summaryData.simulation.marginSafety)}。（多单按 ETH $1000，空单按 ETH $5000）
             </p>
           </div>
         </div>
