@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 /**
  * 添加收支记录弹窗组件
  */
-export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, propertyRecords = [], showPaidOption = true }) {
+export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, propertyRecords = [], showPaidOption = true, initialRecord = null }) {
   const [formData, setFormData] = useState({
     date: defaultDate || '',
     income: '',
@@ -23,7 +23,16 @@ export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, p
   
   // 重置状态
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return
+    if (initialRecord) {
+      setFormData({
+        date: initialRecord.date || defaultDate || '',
+        income: initialRecord.income ?? '',
+        expenses: initialRecord.expenses ?? '',
+        note: initialRecord.note || '',
+        isPaid: Boolean(initialRecord.isPaid)
+      })
+    } else {
       setFormData({
         date: defaultDate || '',
         income: '',
@@ -31,9 +40,9 @@ export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, p
         note: '',
         isPaid: false
       })
-      setError('')
     }
-  }, [isOpen, defaultDate])
+    setError('')
+  }, [isOpen, defaultDate, initialRecord])
   
   const handleSubmit = async () => {
     // 前端验证
@@ -95,7 +104,7 @@ export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, p
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h3 className="text-xl font-semibold text-gray-900">
-            📝 添加收支记录
+            {initialRecord ? '✏️ 编辑收支记录' : '📝 添加收支记录'}
           </h3>
           <button
             onClick={onClose}
@@ -228,7 +237,7 @@ export function AddRecordModal({ isOpen, onClose, onAdd, loading, defaultDate, p
             className="flex-1 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
             disabled={loading}
           >
-            {loading ? '添加中...' : '确认'}
+            {loading ? (initialRecord ? '保存中...' : '添加中...') : '确认'}
           </button>
         </div>
       </div>

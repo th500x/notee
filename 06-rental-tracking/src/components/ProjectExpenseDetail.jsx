@@ -11,7 +11,7 @@ import { uploadService } from '../services'
  * - 显示项目级别的开支信息（不针对具体房源）
  * - 记录和显示收支明细
  * - 支持月度和年度视图
- * - 管理员功能：添加/删除记录
+ * - 管理员功能：添加/编辑/删除记录
  * - 支持上传和查看照片凭证
  */
 function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, viewMode, onExpenseUpdate, isAdmin }) {
@@ -20,6 +20,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
   const [viewerInitialIndex, setViewerInitialIndex] = useState(0)
   const [uploadingRecordIndex, setUploadingRecordIndex] = useState(null)
   const [showAddRecordModal, setShowAddRecordModal] = useState(false)
+  const [editingRecordIndex, setEditingRecordIndex] = useState(null)
   const [addRecordLoading, setAddRecordLoading] = useState(false)
   const fileInputRef = useRef(null)
   // 如果没有选中项目开支，显示提示
@@ -95,35 +96,69 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       return
     }
     
+    setEditingRecordIndex(null)
     setShowAddRecordModal(true)
   }
+
+  const editRecord = (index) => {
+    if (!isAdmin) {
+      alert('请先登录管理员账号')
+      return
+    }
+    setEditingRecordIndex(index)
+    setShowAddRecordModal(true)
+  }
+
+  const closeRecordModal = () => {
+    setShowAddRecordModal(false)
+    setEditingRecordIndex(null)
+  }
   
-  // 确认添加收支记录
+  // 确认添加或保存收支记录（编辑时保留已有照片）
   const handleConfirmAddRecord = async (formData) => {
     setAddRecordLoading(true)
     
     try {
-      const newRecord = {
-        date: formData.date,
-        income: formData.income,
-        expenses: formData.expenses,
-        note: formData.note,
-        photos: []
+      const records = expense.records || []
+      let updatedRecords
+      if (editingRecordIndex !== null && records[editingRecordIndex]) {
+        const existing = records[editingRecordIndex]
+        updatedRecords = records.map((record, index) =>
+          index === editingRecordIndex
+            ? {
+                ...existing,
+                date: formData.date,
+                income: formData.income,
+                expenses: formData.expenses,
+                note: formData.note
+              }
+            : record
+        )
+      } else {
+        updatedRecords = [
+          ...records,
+          {
+            date: formData.date,
+            income: formData.income,
+            expenses: formData.expenses,
+            note: formData.note,
+            photos: []
+          }
+        ]
       }
 
-      const updatedRecords = [...(expense.records || []), newRecord]
       onExpenseUpdate({
         ...expense,
         records: updatedRecords
       })
       
-      setShowAddRecordModal(false)
+      closeRecordModal()
       return { success: true }
     } catch (error) {
-      console.error('添加记录失败:', error)
+      console.error('保存记录失败:', error)
       return {
         success: false,
-        error: error.message || '添加记录失败'
+        error: error.message || '保存记录失败'
       }
     } finally {
       setAddRecordLoading(false)
@@ -329,6 +364,13 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
                         📷
                       </button>
                       <button
+                        onClick={() => editRecord(originalIndex)}
+                        className="text-gray-600 hover:text-gray-800"
+                        title="编辑记录"
+                      >
+                        ✏️
+                      </button>
+                      <button
                         onClick={() => deleteRecord(originalIndex)}
                         className="text-red-500 hover:text-red-700"
                         title="删除记录"
@@ -366,7 +408,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
       {/* 添加收支记录对话框 */}
       <AddRecordModal
         isOpen={showAddRecordModal}
-        onClose={() => setShowAddRecordModal(false)}
+        onClose={closeRecordModal}
         onAdd={handleConfirmAddRecord}
         loading={addRecordLoading}
         defaultDate={viewMode === 'month' 
@@ -374,6 +416,7 @@ function ProjectExpenseDetail({ expense, project, selectedYear, selectedMonth, v
           : `${selectedYear}-01`}
         propertyRecords={expense.records || []}
         showPaidOption={false}
+        initialRecord={editingRecordIndex !== null ? expense.records?.[editingRecordIndex] : null}
       />
     </div>
   )
