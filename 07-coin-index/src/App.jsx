@@ -25,7 +25,6 @@ function App() {
   const [currentYear, setCurrentYear] = useState(yearRange.default)
   const [showSimulation, setShowSimulation] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
-  const [simulationDataByYear, setSimulationDataByYear] = useState({}) // 按年份存储模拟数据
 
   // 从allWeeklyData计算派生数据
   const weeklyData = useYearlyData(allWeeklyData, currentYear)
@@ -107,7 +106,7 @@ function App() {
                 onClick={() => setShowSummary(true)}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
-                📈 年终总结
+                📈 年度总结
               </button>
             </div>
           </div>
@@ -156,26 +155,17 @@ function App() {
               weeklyData={allWeeklyData}
               selectedYear={currentYear}
               onClose={() => setShowSimulation(false)}
-              onDataGenerated={(data) => {
-                // 按年份存储模拟数据
-                setSimulationDataByYear(prev => ({
-                  ...prev,
-                  [currentYear]: data
-                }))
-              }}
             />
           </div>
         </div>
       )}
 
-      {/* 年终总结模态框 */}
       {showSummary && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto">
             <YearSummary
               weeklyData={allWeeklyData}
               selectedYear={currentYear}
-              simulationData={simulationDataByYear[currentYear] || []}
               onClose={() => setShowSummary(false)}
             />
           </div>

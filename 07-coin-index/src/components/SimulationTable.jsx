@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react'
 import { YEAR_RANGE, TRADING_SIGNALS } from '../constants'
 import { getRatingTextClass, getTradeDirectionTextClass } from '../utils/ratingColors'
-import { generateSimulationTrades } from '../utils/simulationTrades'
+import { SIM_PLAN, generateSimulationTrades } from '../utils/simulationTrades'
+import SimulationPlanSwitch from './SimulationPlanSwitch'
 
-// 模拟演练表格组件
-function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose, onDataGenerated }) {
+function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose }) {
   const [simulationData, setSimulationData] = useState([])
   const [loading, setLoading] = useState(true)
+  const [plan, setPlan] = useState(SIM_PLAN.INDICATOR)
 
   useEffect(() => {
     try {
-      const results = generateSimulationTrades(weeklyData, selectedYear)
+      const results = generateSimulationTrades(weeklyData, selectedYear, plan)
       setSimulationData(results)
-      if (onDataGenerated) onDataGenerated(results)
       setLoading(false)
     } catch (error) {
       console.error('💥 生成模拟演练数据失败:', error)
       setLoading(false)
     }
-  }, [weeklyData, selectedYear])
+  }, [weeklyData, selectedYear, plan])
 
   const formatNumber = (value) => {
     if (value === 'TBD') return 'TBD'
@@ -56,10 +56,15 @@ function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClos
     <div className="max-h-[90vh] overflow-hidden flex flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between p-6 border-b shrink-0">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">🎮 {selectedYear}年模拟演练</h2>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-900">🎮 {selectedYear}年模拟演练</h2>
+            <SimulationPlanSwitch value={plan} onChange={setPlan} />
+          </div>
           <p className="text-sm text-gray-600 mt-1">
-            开仓：评级 ≥{TRADING_SIGNALS.BUY_THRESHOLD} BUY · ≤{TRADING_SIGNALS.SELL_THRESHOLD} SELL；平仓：止盈 $
+            {plan === SIM_PLAN.BADGE
+              ? '开仓：当周「必」或「荐」各 1 ETH；平仓：止盈 $'
+              : `开仓：评级 ≥${TRADING_SIGNALS.BUY_THRESHOLD} BUY · ≤${TRADING_SIGNALS.SELL_THRESHOLD} SELL，各 1 ETH；平仓：止盈 $`}
             {TRADING_SIGNALS.TAKE_PROFIT_USD}/ETH
           </p>
         </div>
@@ -77,7 +82,9 @@ function SimulationTable({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClos
         <p className="font-medium mb-1">结算规则说明</p>
         <ul className="list-disc list-inside space-y-0.5 text-blue-800">
           <li>
-            开仓与以往相同：个人评级达到看多/看空阈值当周按 ETH 周均价开仓（同向信号可叠仓）。
+            {plan === SIM_PLAN.BADGE
+              ? '开仓：当周有「必」或「荐」时按 ETH 周均价开 1 ETH（必买/荐买为多，必卖/荐卖为空；同向可叠仓）。'
+              : '开仓：个人评级达到看多/看空阈值当周按 ETH 周均价开 1 ETH（同向信号可叠仓）。'}
           </li>
           <li>
             平仓为止盈 ${TRADING_SIGNALS.TAKE_PROFIT_USD}

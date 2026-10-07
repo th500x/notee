@@ -1,23 +1,20 @@
 import { useState, useEffect } from 'react'
 import { YEAR_RANGE } from '../constants'
-import { generateSimulationTrades } from '../utils/simulationTrades'
+import { SIM_PLAN, runYearSimulation } from '../utils/simulationTrades'
+import SimulationPlanSwitch from './SimulationPlanSwitch'
 
-// 年终总结组件
-function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulationData, onClose }) {
+function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, onClose }) {
   const [summaryData, setSummaryData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [plan, setPlan] = useState(SIM_PLAN.INDICATOR)
 
   useEffect(() => {
-    // 与模拟演练共用同一生成函数；若本会话已打开过模拟演练则优先用缓存，否则当场重算
-    const trades =
-      simulationData && simulationData.length > 0
-        ? simulationData
-        : generateSimulationTrades(weeklyData, selectedYear)
-    generateSummaryData(trades)
-  }, [weeklyData, selectedYear, simulationData])
+    const { trades, marginSafety } = runYearSimulation(weeklyData, selectedYear, plan)
+    generateSummaryData(trades, marginSafety)
+  }, [weeklyData, selectedYear, plan])
 
-  // 生成年终总结数据
-  const generateSummaryData = (simData = []) => {
+  // 生成年度总结数据
+  const generateSummaryData = (simData = [], marginSafety = 0) => {
     try {
       const weeks = Object.keys(weeklyData)
         .filter(key => key.startsWith(`${selectedYear}-W`))
@@ -215,7 +212,8 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
         avgHoldingWeeks: 0,
         maxProfit: 0,
         maxLoss: 0, // 仅统计已结算且 profit < 0
-        totalProfit: 0
+        totalProfit: 0,
+        marginSafety: 0,
       }
 
       if (simData && simData.length > 0) {
@@ -244,6 +242,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
           })
         }
       }
+      simulationStats.marginSafety = marginSafety
 
       const yearWeekCount = weeks.length
       const ahr999InvestmentRate =
@@ -292,7 +291,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
       setSummaryData(summary)
       setLoading(false)
     } catch (error) {
-      console.error('💥 生成年终总结数据失败:', error)
+      console.error('💥 生成年度总结数据失败:', error)
       setLoading(false)
     }
   }
@@ -327,7 +326,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
         <div className="bg-white rounded-lg p-6">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p>正在生成年终总结数据...</p>
+            <p>正在生成年度总结数据...</p>
           </div>
         </div>
       </div>
@@ -339,7 +338,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-6">
           <div className="text-center">
-            <p className="text-red-600">生成年终总结数据失败</p>
+            <p className="text-red-600">生成年度总结数据失败</p>
             <button
               onClick={onClose}
               className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -357,8 +356,11 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
         {/* 标题栏 */}
         <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">🎊 {selectedYear}年终总结</h2>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-3xl font-bold text-gray-900">🎊 {selectedYear}年度总结</h2>
+              <SimulationPlanSwitch value={plan} onChange={setPlan} />
+            </div>
             <p className="text-sm text-gray-600 mt-1">
               数据范围: {summaryData.dataRange.start} 至 {summaryData.dataRange.end} (共{summaryData.totalWeeks}周)
             </p>
@@ -574,6 +576,7 @@ function YearSummary({ weeklyData, selectedYear = YEAR_RANGE.DEFAULT, simulation
                 <>模拟演练策略共执行{summaryData.simulation.totalTrades}次交易，胜率{formatPercent(summaryData.simulation.winRate)}，
                 总盈亏${formatNumber(summaryData.simulation.totalProfit)}。</>
               )}
+              本年保证金安全线${formatNumber(summaryData.simulation.marginSafety)}。（多单按 ETH 1000USD，空单按 ETH 5000USD。）
             </p>
           </div>
         </div>
