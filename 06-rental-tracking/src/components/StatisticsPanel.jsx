@@ -2,7 +2,7 @@
  * 统计面板组件
  * 
  * 功能：
- * - 显示总收入、总支出（下方拆佣金 / 维修etc）、净利润
+ * - 显示总收入、总支出（下方拆佣金 / 其他）、净利润
  * - 月度视图：显示缴租率（已缴租房间数 / 出租中+新合同房间数）
  * - 年度视图：显示出租率（只计算当前月份之前的月份平均出租率）
  * - 根据选择的时间范围计算统计数据
@@ -134,7 +134,7 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
       totalIncome,
       totalExpenses,
       totalCommission,
-      maintenanceEtc: totalExpenses - totalCommission,
+      others: totalExpenses - totalCommission,
       netProfit,
       rateValue,
       rateLabel,
@@ -169,7 +169,7 @@ function StatisticsPanel({ rentalData, selectedYear, selectedMonth, viewMode }) 
         </div>
         <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs text-gray-500">
           <span>佣金: ฿{stats.totalCommission.toLocaleString()}</span>
-          <span>维修etc: ฿{stats.maintenanceEtc.toLocaleString()}</span>
+          <span>其他: ฿{stats.others.toLocaleString()}</span>
         </div>
       </div>
 
