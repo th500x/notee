@@ -349,24 +349,18 @@ function EthMaTradeLogPanel({ accountId }) {
                         {monthGroup.trades.map((trade) => {
                           const tone = rowTone(trade.signal, trade)
                           const pnlUnfilled = trade.pnl == null
-                          const editClass = [
-                            'eth-ma-subscribe__btn',
-                            'eth-ma-subscribe__btn--ghost',
-                            pnlUnfilled && tone !== 'flat' && tone !== 'neutral'
-                              ? `eth-ma-trade-log__edit--unfilled eth-ma-trade-log__edit--${tone}`
-                              : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')
                           return (
-                          <li key={trade.id} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${tone}`}>
+                          <li
+                            key={trade.id}
+                            className={`eth-ma-trade-log__row eth-ma-trade-log__row--${tone}${pnlUnfilled ? ' eth-ma-trade-log__row--unfilled' : ''}`}
+                          >
                             <span>
                               {signalLine(trade.signal)}
                               {` · 买 ${formatEthPrice(trade.entryPrice)} × ${trade.quantity}`}
                               {trade.pnl != null ? ` · 收益 ${formatPnl(trade.pnl)}` : ''}
                             </span>
                             <span className="eth-ma-trade-log__row-actions">
-                              <button type="button" className={editClass} disabled={busy} onClick={() => openEdit(trade)}>
+                              <button type="button" className="eth-ma-subscribe__btn eth-ma-subscribe__btn--ghost" disabled={busy} onClick={() => openEdit(trade)}>
                                 改
                               </button>
                               <button type="button" className="eth-ma-subscribe__link" disabled={busy} onClick={() => handleDelete(trade)}>
