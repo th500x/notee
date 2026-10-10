@@ -73,7 +73,7 @@ app.listen(PORT, async () => {
   console.log(`📊 /api/notee-go/health`);
   console.log(`🔑 /api/notee-go/auth/anonymous · login-id/candidates · register · login`);
   console.log(`👤 /api/notee-go/me`);
-  console.log(`📝 /api/notee-go/posts · /feed · board · blocks · gifts · stamp/bag · pour/bag · pet/bag`);
+  console.log(`📝 /api/notee-go/posts · /feed · board · blocks · gifts · stamp/bag · pour/bag · pet/bag · lyric/favorites`);
   console.log(`📰 /api/notee-go/news · news/board`);
   console.log(`🎆 /api/notee-go/city-events`);
   console.log(`🗄️  DB: ${dbConfig.database} @ ${dbConfig.host}:${dbConfig.port}`);

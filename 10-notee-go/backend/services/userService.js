@@ -23,7 +23,7 @@ const { deleteUser: deletePourMedia } = require('./pourMediaStore');
 
 /** Never select `password_hash` into anything that can reach a response. */
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
-                   created_at, updated_at, deleted_at`;
+                   party_pass, notee_points, created_at, updated_at, deleted_at`;
 
 const CANDIDATES_DEFAULT = 9;
 const CANDIDATES_MAX = 9;
@@ -45,6 +45,8 @@ function rowToUser(row) {
     gender: row.gender,
     avatarId: row.avatar_id,
     status: row.status,
+    partyPass: Boolean(Number(row.party_pass)),
+    noteePoints: Number(row.notee_points) || 0,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
   };
@@ -380,6 +382,7 @@ async function deleteMe(userId) {
   await query(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
+  await query(`DELETE FROM lyric_favorite_bags WHERE user_id = ?`, [userId]);
   await deletePourMedia(userId).catch((err) => {
     console.error('[notee-go/pour-media] deleteMe', err.message);
   });
@@ -416,6 +419,7 @@ async function eraseUnregisteredUser(userId) {
     await exec(`DELETE FROM stamp_bags WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM lyric_favorite_bags WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM lyric_proposals WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM gift_claims WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM gift_campaign_targets WHERE user_id = ?`, [userId]);

@@ -25,6 +25,7 @@
     "test:pour-bag": "node scripts/assert-pour-bag.js",
     "test:pour-media": "node scripts/assert-pour-media.js",
     "test:lyric-proposals": "node scripts/assert-lyric-proposals.js",
+    "test:lyric-favorites": "node scripts/assert-lyric-favorites.js",
     "test:news": "node scripts/assert-news.js",
     "test:city-events": "node scripts/assert-city-events.js"
   },
