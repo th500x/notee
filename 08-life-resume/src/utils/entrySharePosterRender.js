@@ -355,6 +355,8 @@ export async function renderEntrySharePosterBlob({ entry, accountId, displayName
         font-weight: normal;
         font-style: normal;
         font-display: block;
+        /* 黑宋把 U+005C 画成日元号，分享图同样排除这一格 */
+        unicode-range: U+0000-005B, U+005D-10FFFF;
       }
     </style>
     <div data-share-poster-card style="box-sizing:border-box;width:${POSTER_WIDTH_PX}px;padding:40px 36px 36px;background:#ffffff;">

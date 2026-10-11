@@ -127,6 +127,17 @@ export function formatEntryTimeLabel(fields) {
 }
 
 /**
+ * 年份块：最新在上、最早在下。「未知」整块放在所有年份下面。
+ * @param {{ type: string, sortKey: number }} a
+ * @param {{ type: string, sortKey: number }} b
+ */
+function compareTimelineSections(a, b) {
+  if (a.type === 'unknown') return 1;
+  if (b.type === 'unknown') return -1;
+  return b.sortKey - a.sortKey;
+}
+
+/**
  * @param {Array<{ year?: number|null, lifeStage?: string|null, timelineSortKey?: number }>} entries
  */
 export function groupTimelineSections(entries) {
@@ -164,7 +175,7 @@ export function groupTimelineSections(entries) {
   }
 
   return [...sections.values()]
-    .sort((a, b) => a.sortKey - b.sortKey)
+    .sort(compareTimelineSections)
     .map((section) => ({
       ...section,
       entries: [...section.entries].sort(
@@ -178,7 +189,7 @@ function compareEntryTimelineOrder(a, b) {
 }
 
 /**
- * 置顶条目单独成块（时间轴最上方）；其余条目按年或「未知」分组。
+ * 置顶条目单独成块（时间轴最上方）；其余年份最新在上，「未知」在最下方。
  * @returns {{ pinned: object[], sections: object[] }}
  */
 export function buildTimelineLayoutWithPinned(entries) {

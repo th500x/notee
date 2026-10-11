@@ -113,6 +113,17 @@ function formatEntryTimeLabel(fields) {
   return '';
 }
 
+/**
+ * 年份块：最新在上、最早在下。「未知」整块放在所有年份下面。
+ * @param {{ type: string, sortKey: number }} a
+ * @param {{ type: string, sortKey: number }} b
+ */
+function compareTimelineSections(a, b) {
+  if (a.type === 'unknown') return 1;
+  if (b.type === 'unknown') return -1;
+  return b.sortKey - a.sortKey;
+}
+
 function groupTimelineSections(entries) {
   const sections = new Map();
 
@@ -148,7 +159,7 @@ function groupTimelineSections(entries) {
   }
 
   return [...sections.values()]
-    .sort((a, b) => a.sortKey - b.sortKey)
+    .sort(compareTimelineSections)
     .map((section) => ({
       ...section,
       entries: [...section.entries].sort(
