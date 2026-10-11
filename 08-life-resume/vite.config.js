@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function offTreeOutDir(bucket) {
+  if (process.platform !== 'win32') return 'dist';
+  return path.join(path.parse(__dirname).root, 'notee-build', bucket);
+}
+
 export default defineConfig({
   plugins: [react()],
   base: '/08-life-resume/',
@@ -28,6 +33,8 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: offTreeOutDir('08-life-resume'),
+    emptyOutDir: true,
     assetsInlineLimit: 0,
     rollupOptions: {
       output: {

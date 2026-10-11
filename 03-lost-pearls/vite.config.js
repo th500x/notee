@@ -5,6 +5,11 @@ import react from '@vitejs/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+function offTreeOutDir(bucket) {
+  if (process.platform !== 'win32') return 'dist'
+  return path.join(path.parse(__dirname).root, 'notee-build', bucket)
+}
+
 export default defineConfig({
   plugins: [react()],
   base: '/03-lost-pearls/',
@@ -20,7 +25,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: offTreeOutDir('03-lost-pearls'),
+    emptyOutDir: true,
     assetsDir: 'assets',
     sourcemap: false,
   },
