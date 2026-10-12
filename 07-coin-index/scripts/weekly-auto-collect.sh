@@ -45,15 +45,38 @@ fi
 git fetch -q origin main
 
 # 周指标推送（Plan A/B）：脚本内缺任一必填指标则跳过，采齐后的下一轮才判定。
-# 密钥读 00 后端 .env。失败不阻断采数成功（systemd 仍看 collect_status）
-if [ -f "$REPO/08-life-resume/backend/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$REPO/08-life-resume/backend/.env"
-  set +a
+# 只按字面读取通知要用的键。不要 source 整份 .env：口令哈希以 $2 开头，
+# shell 会把它当成变量，set -u 下整段脚本会在这里退出。通知失败不改变采数结果。
+read_env_literal() {
+  local file="$1"
+  local key="$2"
+  local line=""
+  local val=""
+  line=$(grep -m1 -E "^(export[[:space:]]+)?${key}=" "$file" || true)
+  val="${line#*=}"
+  val="${val%$'\r'}"
+  if [ "${#val}" -ge 2 ]; then
+    local first="${val:0:1}"
+    local last="${val: -1}"
+    if [ "$first" = "$last" ] && { [ "$first" = "'" ] || [ "$first" = '"' ]; }; then
+      val="${val:1:$((${#val} - 2))}"
+    fi
+  fi
+  printf '%s' "$val"
+}
+
+env_file="$REPO/08-life-resume/backend/.env"
+ETH_MA_INGEST_SECRET=""
+if [ -f "$env_file" ]; then
+  ETH_MA_INGEST_SECRET=$(read_env_literal "$env_file" ETH_MA_INGEST_SECRET)
+  env_url=$(read_env_literal "$env_file" ETH_MA_INGEST_URL)
+  if [ -n "$env_url" ]; then
+    ETH_MA_INGEST_URL="$env_url"
+  fi
 fi
 if [ -n "${ETH_MA_INGEST_SECRET:-}" ]; then
   ETH_MA_INGEST_URL="${ETH_MA_INGEST_URL:-https://notee.vip/api/life-resume/eth-ma-cross/week-signals/ingest}" \
+    ETH_MA_INGEST_SECRET="$ETH_MA_INGEST_SECRET" \
     node "$APP/scripts/notifyEthWeekSignals.js" || echo "周指标通知失败（采数已成功）" >&2
 else
   echo "跳过周指标通知：未配置 ETH_MA_INGEST_SECRET" >&2
