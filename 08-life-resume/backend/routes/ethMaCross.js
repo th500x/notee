@@ -129,7 +129,7 @@ router.post('/ingest', ethMaIngestLimiter, async (req, res, next) => {
         reason: result.reason || null,
         barCount: result.barCount || klines.length,
         notified: Boolean(result.notified),
-        cross: result.bar ? result.bar.cross : null,
+        cross: result.signal ? result.signal.cross : result.bar ? result.bar.cross : null,
         close: result.bar ? result.bar.close : null,
         sma7: result.bar ? result.bar.sma7 : null,
         sma25: result.bar ? result.bar.sma25 : null,

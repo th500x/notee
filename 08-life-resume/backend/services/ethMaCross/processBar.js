@@ -4,9 +4,9 @@
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
-const { evaluateClosedCloses } = require('./smaCross');
+const { evaluateClosedCloses, lastBarConfirmedCross } = require('./smaCross');
 const { formatPushPayload } = require('./formatSignal');
-const { getStateRow, saveClosedBar, markNotified } = require('./signalStateStore');
+const { getStateRow, saveClosedBar, saveConfirmedSignal, markNotified } = require('./signalStateStore');
 const { upsertCrossSignal } = require('./signalHistoryStore');
 const { sendMaCrossToSubscribers } = require('../webPush/sendService');
 const { listSubscriptionsForTopic } = require('../webPush/subscriptionService');
@@ -48,9 +48,14 @@ async function applyOnce(klines, options = {}) {
   }
 
   const latest = sorted[sorted.length - 1];
-  const evaluation = evaluateClosedCloses(sorted.map((item) => item.close));
+  const closes = sorted.map((item) => item.close);
+  const evaluation = evaluateClosedCloses(closes);
   if (!evaluation.ok) {
     return { ok: false, reason: evaluation.reason || 'EVAL_FAILED', barCount: sorted.length };
+  }
+  const confirmation = lastBarConfirmedCross(closes, ETH_MA_CROSS.NOISE_GAP_USD);
+  if (!confirmation.ok) {
+    return { ok: false, reason: confirmation.reason || 'CONFIRM_FAILED', barCount: sorted.length };
   }
 
   const state = await getStateRow();
@@ -81,56 +86,89 @@ async function applyOnce(klines, options = {}) {
     );
   }
 
-  if (!bar.cross) {
-    return { ok: true, bar, notified: false, reason: 'NO_CROSS', barCount: sorted.length };
+  const confirmed = confirmation.confirmed;
+  if (!confirmed) {
+    if (bar.cross && !alreadySaved) {
+      const gap = Math.abs(Number(bar.sma7) - Number(bar.sma25));
+      log(
+        `noise cross ${bar.cross} open=${latest.openTime} gap=${gap.toFixed(4)} min=${ETH_MA_CROSS.NOISE_GAP_USD}`
+      );
+    }
+    return {
+      ok: true,
+      bar,
+      notified: false,
+      reason: bar.cross ? 'NOISE_GAP' : 'NO_CROSS',
+      barCount: sorted.length,
+    };
   }
 
-  await upsertCrossSignal(bar);
+  const crossBar = sorted[confirmed.crossIndex];
+  if (!crossBar) {
+    return { ok: false, reason: 'MISSING_CROSS_BAR', barCount: sorted.length };
+  }
+  const signal = {
+    closedOpenTime: crossBar.openTime,
+    closedCloseTime: crossBar.closeTime,
+    close: crossBar.close,
+    sma7: confirmed.crossSma7,
+    sma25: confirmed.crossSma25,
+    cross: confirmed.cross,
+  };
+  await upsertCrossSignal(signal);
+  await saveConfirmedSignal(signal);
+  if (!alreadySaved) {
+    log(
+      `confirmed ${signal.cross} crossOpen=${signal.closedOpenTime} confirmOpen=${latest.openTime} gapMin=${ETH_MA_CROSS.NOISE_GAP_USD}`
+    );
+  }
 
   const alreadyNotified = Number(state.last_notified_open_time) === latest.openTime;
   if (alreadyNotified) {
-    return { ok: true, bar, notified: false, reason: 'ALREADY_NOTIFIED', barCount: sorted.length };
+    return { ok: true, bar, signal, notified: false, reason: 'ALREADY_NOTIFIED', barCount: sorted.length };
   }
 
   const ageMs = Date.now() - Number(bar.closedCloseTime);
   if (ageMs > freshCloseMs) {
-    log(`skip notify ${bar.cross} open=${latest.openTime} staleAgeMs=${ageMs}`);
-    return { ok: true, bar, notified: false, reason: 'STALE', barCount: sorted.length };
+    log(`skip notify ${signal.cross} open=${latest.openTime} staleAgeMs=${ageMs}`);
+    return { ok: true, bar, signal, notified: false, reason: 'STALE', barCount: sorted.length };
   }
 
   const payload = formatPushPayload({
     symbol: ETH_MA_CROSS.SYMBOL,
     klineInterval: ETH_MA_CROSS.KLINE_INTERVAL,
-    cross: bar.cross,
-    close: bar.close,
-    sma7: bar.sma7,
-    sma25: bar.sma25,
-    closedOpenTime: bar.closedOpenTime,
-    closedCloseTime: bar.closedCloseTime,
+    cross: signal.cross,
+    close: signal.close,
+    sma7: signal.sma7,
+    sma25: signal.sma25,
+    closedOpenTime: signal.closedOpenTime,
+    closedCloseTime: signal.closedCloseTime,
   });
 
   if (options.relayPush) {
     if (!isVapidConfigured()) {
-      log(`skip notify ${bar.cross} VAPID missing`);
-      return { ok: true, bar, notified: false, reason: 'VAPID_MISSING', barCount: sorted.length };
+      log(`skip notify ${signal.cross} VAPID missing`);
+      return { ok: true, bar, signal, notified: false, reason: 'VAPID_MISSING', barCount: sorted.length };
     }
     const rows = await listSubscriptionsForTopic();
     if (!rows.length) {
       await markNotified(latest.openTime);
-      log(`notify ${bar.cross} close=${bar.close} sent=0/0 gone=0 failed=0`);
+      log(`notify ${signal.cross} close=${signal.close} sent=0/0 gone=0 failed=0`);
       return {
         ok: true,
         bar,
+        signal,
         notified: true,
         push: { sent: 0, total: 0, gone: 0, failed: 0 },
         barCount: sorted.length,
       };
     }
     const vapid = getVapidConfig();
-    log(`relay push ${bar.cross} close=${bar.close} subscribers=${rows.length}`);
+    log(`relay push ${signal.cross} close=${signal.close} subscribers=${rows.length}`);
     return {
       ok: true,
       bar,
+      signal,
       notified: false,
       reason: 'PUSH_RELAY',
       pushDispatch: {
@@ -154,9 +192,9 @@ async function applyOnce(klines, options = {}) {
   const push = await sendMaCrossToSubscribers(payload);
   await markNotified(latest.openTime);
   log(
-    `notify ${bar.cross} close=${bar.close} sent=${push.sent}/${push.total} gone=${push.gone} failed=${push.failed}`
+    `notify ${signal.cross} close=${signal.close} sent=${push.sent}/${push.total} gone=${push.gone} failed=${push.failed}`
   );
-  return { ok: true, bar, notified: true, push, barCount: sorted.length };
+  return { ok: true, bar, signal, notified: true, push, barCount: sorted.length };
 }
 
 function applyClosedKlineSeries(klines, options) {

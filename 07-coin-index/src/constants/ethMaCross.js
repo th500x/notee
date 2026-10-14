@@ -7,6 +7,7 @@ export const ETH_MA_CROSS = {
   KLINE_INTERVAL: '1h',
   SMA_FAST: 7,
   SMA_SLOW: 25,
+  NOISE_GAP_USD: 10,
   TOPIC: 'eth_ma_1h',
 }
 

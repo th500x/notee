@@ -58,8 +58,68 @@ function evaluateClosedCloses(closes, options = {}) {
   };
 }
 
+/**
+ * 最后一根是否是「这一侧第一次拉开到 minGap 美元」。
+ * 交叉当根差距不够，先挂起；没到门槛又反向交叉，整段作废。
+ * 已经确认过的后续 K 线不再返回，避免重复通知。
+ */
+function lastBarConfirmedCross(closes, minGap, options = {}) {
+  const fastPeriod = options.fastPeriod || ETH_MA_CROSS.SMA_FAST;
+  const slowPeriod = options.slowPeriod || ETH_MA_CROSS.SMA_SLOW;
+  const gapMin = Number(minGap);
+  if (!Number.isFinite(gapMin) || gapMin <= 0) {
+    return { ok: false, reason: 'BAD_MIN_GAP' };
+  }
+  if (!Array.isArray(closes) || closes.length < slowPeriod + 1) {
+    return { ok: false, reason: 'INSUFFICIENT_BARS' };
+  }
+
+  const last = closes.length - 1;
+  let swing = null;
+  for (let i = slowPeriod; i <= last; i += 1) {
+    const sma7 = smaAt(closes, fastPeriod, i);
+    const sma25 = smaAt(closes, slowPeriod, i);
+    const prevSma7 = smaAt(closes, fastPeriod, i - 1);
+    const prevSma25 = smaAt(closes, slowPeriod, i - 1);
+    if (sma7 == null || sma25 == null || prevSma7 == null || prevSma25 == null) {
+      return { ok: false, reason: 'INVALID_CLOSE' };
+    }
+    const cross = detectSmaCross(prevSma7, prevSma25, sma7, sma25);
+    if (cross) {
+      swing = {
+        cross,
+        crossIndex: i,
+        crossSma7: sma7,
+        crossSma25: sma25,
+        confirmed: false,
+        confirmIndex: null,
+      };
+    }
+    if (!swing || swing.confirmed) continue;
+    if (Math.abs(sma7 - sma25) >= gapMin) {
+      swing.confirmed = true;
+      swing.confirmIndex = i;
+    }
+  }
+
+  if (!swing || !swing.confirmed || swing.confirmIndex !== last) {
+    return { ok: true, confirmed: null };
+  }
+  return {
+    ok: true,
+    confirmed: {
+      cross: swing.cross,
+      crossIndex: swing.crossIndex,
+      confirmIndex: swing.confirmIndex,
+      crossSma7: swing.crossSma7,
+      crossSma25: swing.crossSma25,
+    },
+  };
+}
+
 module.exports = {
   smaAt,
   detectSmaCross,
   evaluateClosedCloses,
+  lastBarConfirmedCross,
 };

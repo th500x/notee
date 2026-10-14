@@ -45,9 +45,11 @@ async function saveClosedBar(bar) {
       ETH_MA_CROSS.STATE_ROW_ID,
     ]
   );
+}
 
-  if (!bar.cross) return;
-
+/** 只在拉开到门槛后写入。杂质交叉不更新「最近均线」。 */
+async function saveConfirmedSignal(signal) {
+  await ensureStateRow();
   await query(
     `UPDATE eth_ma_cross_state
      SET last_signal_cross = ?,
@@ -58,12 +60,12 @@ async function saveClosedBar(bar) {
          last_signal_at = ?
      WHERE id = ?`,
     [
-      bar.cross,
-      bar.closedOpenTime,
-      bar.close,
-      bar.sma7,
-      bar.sma25,
-      new Date(bar.closedCloseTime),
+      signal.cross,
+      signal.closedOpenTime,
+      signal.close,
+      signal.sma7,
+      signal.sma25,
+      new Date(signal.closedCloseTime),
       ETH_MA_CROSS.STATE_ROW_ID,
     ]
   );
@@ -81,5 +83,6 @@ module.exports = {
   getStateRow,
   getLatestSnapshot,
   saveClosedBar,
+  saveConfirmedSignal,
   markNotified,
 };

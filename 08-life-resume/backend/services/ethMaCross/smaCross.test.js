@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { smaAt, detectSmaCross, evaluateClosedCloses } = require('./smaCross');
+const { smaAt, detectSmaCross, evaluateClosedCloses, lastBarConfirmedCross } = require('./smaCross');
 
 describe('smaAt', () => {
   it('averages the trailing window', () => {
@@ -72,5 +72,59 @@ describe('evaluateClosedCloses', () => {
     assert.equal(result.cross, null);
     assert.equal(result.sma7, 100);
     assert.equal(result.sma25, 100);
+  });
+});
+
+describe('lastBarConfirmedCross', () => {
+  const periods = { fastPeriod: 2, slowPeriod: 3 };
+  const base = [1, 2, 3, 4, 5];
+
+  it('rejects a non-positive gap', () => {
+    const result = lastBarConfirmedCross([1, 2, 3, 4], 0, periods);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'BAD_MIN_GAP');
+  });
+
+  it('does not confirm a cross whose gap stays under 10', () => {
+    const closes = [...base, 0];
+    const result = lastBarConfirmedCross(closes, 10, periods);
+    assert.equal(result.ok, true);
+    assert.equal(result.confirmed, null);
+    assert.equal(evaluateClosedCloses(closes, periods).cross, 'death');
+  });
+
+  it('drops the swing when price crosses back before the gap reaches 10', () => {
+    const closes = [...base, 0, 20];
+    const result = lastBarConfirmedCross(closes, 10, periods);
+    assert.equal(result.ok, true);
+    assert.equal(result.confirmed, null);
+    assert.equal(evaluateClosedCloses(closes, periods).cross, 'golden');
+  });
+
+  it('confirms on the later bar where the gap first reaches 10', () => {
+    const before = [...base, 0, -30];
+    const at = [...before, -30];
+    assert.equal(lastBarConfirmedCross(before, 10, periods).confirmed, null);
+    const result = lastBarConfirmedCross(at, 10, periods);
+    assert.equal(result.ok, true);
+    assert.equal(result.confirmed.cross, 'death');
+    assert.equal(result.confirmed.crossIndex, 5);
+    assert.equal(result.confirmed.confirmIndex, 7);
+  });
+
+  it('does not confirm again on bars after the gap already reached 10', () => {
+    const closes = [...base, 0, -30, -30, -30];
+    const result = lastBarConfirmedCross(closes, 10, periods);
+    assert.equal(result.ok, true);
+    assert.equal(result.confirmed, null);
+  });
+
+  it('confirms on the cross bar itself when that bar already gaps by 10', () => {
+    const closes = [...base, -100];
+    const result = lastBarConfirmedCross(closes, 10, periods);
+    assert.equal(result.ok, true);
+    assert.equal(result.confirmed.cross, 'death');
+    assert.equal(result.confirmed.crossIndex, 5);
+    assert.equal(result.confirmed.confirmIndex, 5);
   });
 });

@@ -9,6 +9,8 @@ const ETH_MA_CROSS = {
   KLINE_INTERVAL: '1h',
   SMA_FAST: 7,
   SMA_SLOW: 25,
+  /** 交叉后 |SMA7−SMA25| 未到此美元数又穿回：不推送、不进待记、不更新「最近均线」 */
+  NOISE_GAP_USD: 10,
   TOPIC: 'eth_ma_1h',
   STATE_ROW_ID: 1,
   REST_KLINES_URL: 'https://fapi.binance.com/fapi/v1/klines',
