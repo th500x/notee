@@ -4,7 +4,7 @@
  */
 
 const { ETH_MA_CROSS } = require('../../constants/ethMaCross');
-const { evaluateClosedCloses, lastBarConfirmedCross } = require('./smaCross');
+const { evaluateClosedCloses, lastBarActionableCross } = require('./smaCross');
 const { formatPushPayload } = require('./formatSignal');
 const { getStateRow, saveClosedBar, saveConfirmedSignal, markNotified } = require('./signalStateStore');
 const { upsertCrossSignal } = require('./signalHistoryStore');
@@ -53,9 +53,9 @@ async function applyOnce(klines, options = {}) {
   if (!evaluation.ok) {
     return { ok: false, reason: evaluation.reason || 'EVAL_FAILED', barCount: sorted.length };
   }
-  const confirmation = lastBarConfirmedCross(closes, ETH_MA_CROSS.NOISE_GAP_USD);
-  if (!confirmation.ok) {
-    return { ok: false, reason: confirmation.reason || 'CONFIRM_FAILED', barCount: sorted.length };
+  const decision = lastBarActionableCross(closes, ETH_MA_CROSS.NOISE_GAP_USD);
+  if (!decision.ok) {
+    return { ok: false, reason: decision.reason || 'CONFIRM_FAILED', barCount: sorted.length };
   }
 
   const state = await getStateRow();
@@ -86,12 +86,12 @@ async function applyOnce(klines, options = {}) {
     );
   }
 
-  const confirmed = confirmation.confirmed;
-  if (!confirmed) {
+  const actionable = decision.actionable;
+  if (!actionable || actionable.crossIndex !== sorted.length - 1) {
     if (bar.cross && !alreadySaved) {
-      const gap = Math.abs(Number(bar.sma7) - Number(bar.sma25));
+      const priorPeak = Number(decision.priorPeak);
       log(
-        `noise cross ${bar.cross} open=${latest.openTime} gap=${gap.toFixed(4)} min=${ETH_MA_CROSS.NOISE_GAP_USD}`
+        `noise cross ${bar.cross} open=${latest.openTime} close=${Number(bar.close)} priorPeak=${Number.isFinite(priorPeak) ? priorPeak.toFixed(4) : 'none'} min=${ETH_MA_CROSS.NOISE_GAP_USD}`
       );
     }
     return {
@@ -103,23 +103,19 @@ async function applyOnce(klines, options = {}) {
     };
   }
 
-  const crossBar = sorted[confirmed.crossIndex];
-  if (!crossBar) {
-    return { ok: false, reason: 'MISSING_CROSS_BAR', barCount: sorted.length };
-  }
   const signal = {
-    closedOpenTime: crossBar.openTime,
-    closedCloseTime: crossBar.closeTime,
-    close: crossBar.close,
-    sma7: confirmed.crossSma7,
-    sma25: confirmed.crossSma25,
-    cross: confirmed.cross,
+    closedOpenTime: latest.openTime,
+    closedCloseTime: latest.closeTime,
+    close: Number(latest.close),
+    sma7: actionable.crossSma7,
+    sma25: actionable.crossSma25,
+    cross: actionable.cross,
   };
   await upsertCrossSignal(signal);
   await saveConfirmedSignal(signal);
   if (!alreadySaved) {
     log(
-      `confirmed ${signal.cross} crossOpen=${signal.closedOpenTime} confirmOpen=${latest.openTime} gapMin=${ETH_MA_CROSS.NOISE_GAP_USD}`
+      `actionable ${signal.cross} open=${latest.openTime} close=${signal.close} priorPeak=${actionable.priorPeak.toFixed(4)} min=${ETH_MA_CROSS.NOISE_GAP_USD}`
     );
   }
 
