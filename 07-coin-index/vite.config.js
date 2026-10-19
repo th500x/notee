@@ -2,6 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { siteFontDevPlugin } from '../shared/viteSiteFont.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -12,7 +13,7 @@ function offTreeOutDir(bucket) {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), siteFontDevPlugin(path.resolve(__dirname, '..'))],
   base: '/07-coin-index/',
   server: {
     port: 5174,

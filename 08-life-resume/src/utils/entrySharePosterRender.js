@@ -6,7 +6,7 @@ import { appConfig } from '@/config/appConfig';
 import { formatEntryTimeLabel } from '@shared/utils/lifeResumeEntryTime.js';
 import { countGraphemes } from '@shared/utils/lifeResumeGraphemeCount.js';
 import { captureSharePosterElementToBlob } from '@/utils/entrySharePosterCapture.js';
-import jyhphsFontUrl from '@/assets/fonts/JYHPHS.woff2?url';
+const jyhphsFontUrl = '/fonts/JYHPHS.woff2';
 
 const POSTER_WIDTH_PX = 750;
 const POSTER_PADDING_X = 36;

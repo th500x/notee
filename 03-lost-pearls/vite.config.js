@@ -2,6 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { siteFontDevPlugin } from '../shared/viteSiteFont.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -11,7 +12,7 @@ function offTreeOutDir(bucket) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), siteFontDevPlugin(path.resolve(__dirname, '..'))],
   base: '/03-lost-pearls/',
   resolve: {
     alias: {

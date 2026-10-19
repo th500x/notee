@@ -18,10 +18,19 @@ html {
   scroll-behavior: smooth;
 }
 
+@font-face {
+  font-family: 'JYHPHS';
+  src: url('/fonts/JYHPHS.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-005B, U+005D-10FFFF;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: 'JYHPHS', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
