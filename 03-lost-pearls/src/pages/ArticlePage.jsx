@@ -13,7 +13,7 @@ export default function ArticlePage() {
 
   if (!game || !article) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-20 text-center">
+      <div className="py-16 text-center">
         <p className="text-[var(--muted)]">未找到该章节。</p>
         <Link to="/" className="mt-4 inline-block text-[var(--accent)] hover:underline">
           返回目录
@@ -23,9 +23,9 @@ export default function ArticlePage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:py-10">
-      <aside className="lg:sticky lg:top-20 lg:self-start">
-        <p className="text-xs text-[var(--muted)]">{game.title}</p>
+    <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="lg:sticky lg:top-4 lg:self-start">
+        <p className="text-sm text-[var(--muted)]">{game.title}</p>
         <h2 className="mt-1 text-sm font-medium text-[var(--text)]">本章目录</h2>
         <nav className="mt-3 space-y-1">
           {siblings.map((ch) => {
@@ -47,14 +47,14 @@ export default function ArticlePage() {
         </nav>
         <Link
           to={`/games/${gameId}`}
-          className="mt-6 inline-block text-xs text-[var(--muted)] hover:text-[var(--accent)]"
+          className="mt-6 inline-block text-sm text-[var(--muted)] hover:text-[var(--accent)]"
         >
           ← 游戏首页
         </Link>
       </aside>
 
       <article className="min-w-0">
-        <nav className="text-xs text-[var(--muted)]">
+        <nav className="text-sm text-[var(--muted)]">
           <Link to="/" className="hover:text-[var(--accent)]">
             目录
           </Link>
@@ -67,14 +67,14 @@ export default function ArticlePage() {
         </nav>
 
         <header className="mt-5 border-b border-[var(--border)] pb-6">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{article.title}</h1>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+          <h1 className="text-2xl font-bold">{article.title}</h1>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--muted)]">
             {article.platform ? <span>{article.platform}</span> : null}
             {article.updated ? <span>核实 / 更新 {article.updated}</span> : null}
             {article.status ? <span>{article.status}</span> : null}
           </div>
           {article.sources?.length > 0 ? (
-            <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+            <p className="mt-3 text-sm leading-relaxed text-[var(--muted)]">
               来源线索：{article.sources.join(' · ')}
             </p>
           ) : null}

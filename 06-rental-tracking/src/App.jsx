@@ -372,11 +372,14 @@ function App() {
     }
   }
 
+  const sheetFullBleed = currentView === 'accounting-sheet'
+  const frameClass = sheetFullBleed ? 'w-full px-4' : 'max-w-7xl mx-auto px-4'
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 顶部导航栏 */}
+      {/* 顶部导航栏。账目单列多，这一页左右放到屏幕边缘，其他页仍用居中版心 */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className={`${frameClass} py-6`}>
           <div className="flex justify-between items-center">
             <div>
               <a 
@@ -395,7 +398,7 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className={`${frameClass} py-8`}>
         {/* 加载状态 */}
         {isLoading ? (
           <div className="flex items-center justify-center min-h-[400px]">

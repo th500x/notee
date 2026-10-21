@@ -204,14 +204,3 @@ code {
   text-align: center;
 }
 
-/* HTML 注释在 md 里会被忽略；确保列表在窄屏可读 */
-@media (max-width: 640px) {
-  .guide-prose {
-    font-size: 0.95rem;
-  }
-
-  .guide-prose th,
-  .guide-prose td {
-    padding: 0.5rem 0.6rem;
-  }
-}
