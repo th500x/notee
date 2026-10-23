@@ -159,9 +159,54 @@ export function getAllPropertiesForExport(project) {
 const UTILITY_EXPORT_LOW_WATER_UNITS_MAX = 20
 /** Neutral grey (not slate/blue-grey) — “low water, can ignore these columns”. */
 const UTILITY_EXPORT_LOW_WATER_BAND_FILL = '#d4d4d4'
+/** Crosshatch over the grey band. Even spacing; digits stay just readable. */
+const UTILITY_EXPORT_LOW_WATER_HATCH_GAP = 5
+const UTILITY_EXPORT_LOW_WATER_HATCH_STROKE = 'rgba(45, 45, 45, 0.78)'
 /** Column indices in `columnWidths` matching Last water, Curr. water, Water u. */
 const UTILITY_EXPORT_WATER_COL_FIRST = 4
 const UTILITY_EXPORT_WATER_COL_LAST = 6
+/** Exported PNG is at least 1080p: long edge ≥ 1920 and short edge ≥ 1080. */
+const UTILITY_EXPORT_MIN_LONG_EDGE = 1920
+const UTILITY_EXPORT_MIN_SHORT_EDGE = 1080
+
+function utilityExportPixelScale(logicalWidth, logicalHeight) {
+  const shortEdge = Math.min(logicalWidth, logicalHeight)
+  const longEdge = Math.max(logicalWidth, logicalHeight)
+  const needed = Math.max(
+    UTILITY_EXPORT_MIN_SHORT_EDGE / shortEdge,
+    UTILITY_EXPORT_MIN_LONG_EDGE / longEdge
+  )
+  return Math.max(1, Math.ceil(needed))
+}
+
+/** Even 45° crosshatch, clipped to the grey water cells. Phase is global so rows line up. */
+function strokeUtilityLowWaterCrosshatch(ctx, x, y, w, h) {
+  const gap = UTILITY_EXPORT_LOW_WATER_HATCH_GAP
+  const yTop = y
+  const yBot = y + h
+  const xLeft = x
+  const xRight = x + w
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x, y, w, h)
+  ctx.clip()
+  ctx.strokeStyle = UTILITY_EXPORT_LOW_WATER_HATCH_STROKE
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  const t0 = Math.floor((xLeft - h) / gap) * gap
+  for (let t = t0; t <= xRight; t += gap) {
+    ctx.moveTo(t, yTop)
+    ctx.lineTo(t + h, yBot)
+  }
+  const sEnd = xRight + yBot
+  const s0 = Math.floor((xLeft + yTop) / gap) * gap
+  for (let s = s0; s <= sEnd; s += gap) {
+    ctx.moveTo(s - yTop, yTop)
+    ctx.lineTo(s - yBot, yBot)
+  }
+  ctx.stroke()
+  ctx.restore()
+}
 
 function utilRowUsage(row, pricePerKwh, pricePerWaterUnit) {
   const le = Number(row.lastMonthElectric) || 0
@@ -204,25 +249,27 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
   const tableRows = Math.max(rows.length, 1)
   const totalHeight = padding + headerBlock + rowHeight * (tableRows + 2) + padding + 40
+  const pixelScale = utilityExportPixelScale(totalWidth, totalHeight)
 
-  canvas.width = totalWidth
-  canvas.height = totalHeight
+  canvas.width = Math.round(totalWidth * pixelScale)
+  canvas.height = Math.round(totalHeight * pixelScale)
+  ctx.setTransform(pixelScale, 0, 0, pixelScale, 0, 0)
 
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.fillRect(0, 0, totalWidth, totalHeight)
 
   ctx.font = 'bold 22px Arial, sans-serif'
   ctx.fillStyle = '#1f2937'
   ctx.textAlign = 'center'
-  ctx.fillText(`${projectName || 'Project'} — Utility meter reading`, canvas.width / 2, padding + 28)
+  ctx.fillText(`${projectName || 'Project'} — Utility meter reading`, totalWidth / 2, padding + 28)
 
   ctx.font = '15px Arial, sans-serif'
   ctx.fillStyle = '#4b5563'
   ctx.textAlign = 'center'
-  ctx.fillText(billingPeriodLine, canvas.width / 2, padding + 52)
+  ctx.fillText(billingPeriodLine, totalWidth / 2, padding + 52)
   ctx.fillText(
     `Price per kWh: ${pk}     Price per water unit: ${pw}`,
-    canvas.width / 2,
+    totalWidth / 2,
     padding + 74
   )
 
@@ -252,7 +299,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(padding, tableStartY + 40)
-  ctx.lineTo(canvas.width - padding, tableStartY + 40)
+  ctx.lineTo(totalWidth - padding, tableStartY + 40)
   ctx.stroke()
 
   let totalE = 0
@@ -263,7 +310,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   if (rows.length === 0) {
     ctx.fillStyle = '#9ca3af'
     ctx.textAlign = 'center'
-    ctx.fillText('No rows', canvas.width / 2, tableStartY + rowHeight + 20)
+    ctx.fillText('No rows', totalWidth / 2, tableStartY + rowHeight + 20)
   } else {
     const dataRowTop = (index) => tableStartY + 40 + index * rowHeight
     const dataRowTextY = (index) => dataRowTop(index) + 34
@@ -275,7 +322,8 @@ export async function exportUtilityBillToImage(sheet, projectName) {
       totalAmt += subtotal
       const rowTop = dataRowTop(index)
       const rowY = dataRowTextY(index)
-      if (waterUnits <= UTILITY_EXPORT_LOW_WATER_UNITS_MAX) {
+      const shadeLowWater = waterUnits <= UTILITY_EXPORT_LOW_WATER_UNITS_MAX
+      if (shadeLowWater) {
         ctx.fillStyle = UTILITY_EXPORT_LOW_WATER_BAND_FILL
         ctx.fillRect(waterBandLeft, rowTop, waterBandWidth, rowHeight)
       }
@@ -297,11 +345,14 @@ export async function exportUtilityBillToImage(sheet, projectName) {
         ctx.fillText(data, centerX, rowY)
         currentX += columnWidths[colIndex]
       })
+      if (shadeLowWater) {
+        strokeUtilityLowWaterCrosshatch(ctx, waterBandLeft, rowTop, waterBandWidth, rowHeight)
+      }
       ctx.strokeStyle = '#e5e7eb'
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(padding, rowTop + rowHeight)
-      ctx.lineTo(canvas.width - padding, rowTop + rowHeight)
+      ctx.lineTo(totalWidth - padding, rowTop + rowHeight)
       ctx.stroke()
     })
   }
@@ -320,7 +371,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   ctx.strokeRect(
     padding,
     tableStartY,
-    canvas.width - padding * 2,
+    totalWidth - padding * 2,
     rowHeight * (rows.length > 0 ? rows.length + 1 : 2)
   )
 
