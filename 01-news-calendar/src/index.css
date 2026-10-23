@@ -16,4 +16,12 @@ body {
   font-family: 'JYHPHS', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 输入光标保持常亮，不要一闪一闪 */
+  caret-animation: manual;
+}
+
+input,
+textarea,
+[contenteditable] {
+  caret-animation: manual;
 }
