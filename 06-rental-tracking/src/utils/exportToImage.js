@@ -10,6 +10,30 @@
 import { getAllProperties } from './propertyUtils'
 import { formatUtilityBillingPeriodSubtitle } from './utilityBillingPeriod'
 
+/** 06 全部导出 PNG（含以后新增）至少 1080p：长边 ≥ 1920、短边 ≥ 1080。 */
+const EXPORT_PNG_MIN_LONG_EDGE = 1920
+const EXPORT_PNG_MIN_SHORT_EDGE = 1080
+
+/**
+ * 按逻辑尺寸放大画布。之后用逻辑宽高绘制，不要用 canvas.width / canvas.height。
+ * @param {HTMLCanvasElement} canvas
+ * @param {number} logicalWidth
+ * @param {number} logicalHeight
+ */
+function beginExportCanvas(canvas, logicalWidth, logicalHeight) {
+  const shortEdge = Math.min(logicalWidth, logicalHeight)
+  const longEdge = Math.max(logicalWidth, logicalHeight)
+  const needed = Math.max(
+    EXPORT_PNG_MIN_SHORT_EDGE / shortEdge,
+    EXPORT_PNG_MIN_LONG_EDGE / longEdge
+  )
+  const pixelScale = Math.max(1, Math.ceil(needed))
+  canvas.width = Math.round(logicalWidth * pixelScale)
+  canvas.height = Math.round(logicalHeight * pixelScale)
+  const ctx = canvas.getContext('2d')
+  ctx.setTransform(pixelScale, 0, 0, pixelScale, 0, 0)
+}
+
 /**
  * 导出房源列表为图片
  * @param {Array} properties - 房源列表
@@ -29,13 +53,12 @@ export async function exportPropertiesToImage(properties, projectName, year, mon
   const columnWidths = [150, 150, 150, 200] // 房源编号、租金、押金、缴租状态
   const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
   const totalHeight = headerHeight + rowHeight * (properties.length + 1) + padding * 2
-  
-  canvas.width = totalWidth
-  canvas.height = totalHeight
-  
+
+  beginExportCanvas(canvas, totalWidth, totalHeight)
+
   // 设置背景色
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.fillRect(0, 0, totalWidth, totalHeight)
   
   // 设置字体
   ctx.font = 'bold 24px Arial, sans-serif'
@@ -44,7 +67,7 @@ export async function exportPropertiesToImage(properties, projectName, year, mon
   
   // 绘制标题
   const title = `${projectName} - ${year}年${month}月房源列表`
-  ctx.fillText(title, canvas.width / 2, padding + 30)
+  ctx.fillText(title, totalWidth / 2, padding + 30)
   
   // 绘制表格
   const tableStartY = padding + headerHeight
@@ -66,7 +89,7 @@ export async function exportPropertiesToImage(properties, projectName, year, mon
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(padding, tableStartY + 45)
-  ctx.lineTo(canvas.width - padding, tableStartY + 45)
+  ctx.lineTo(totalWidth - padding, tableStartY + 45)
   ctx.stroke()
   
   // 绘制数据行
@@ -112,14 +135,14 @@ export async function exportPropertiesToImage(properties, projectName, year, mon
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(padding, rowY + 15)
-    ctx.lineTo(canvas.width - padding, rowY + 15)
+    ctx.lineTo(totalWidth - padding, rowY + 15)
     ctx.stroke()
   })
   
   // 绘制外边框
   ctx.strokeStyle = '#9ca3af'
   ctx.lineWidth = 2
-  ctx.strokeRect(padding, tableStartY, canvas.width - padding * 2, rowHeight * (properties.length + 1))
+  ctx.strokeRect(padding, tableStartY, totalWidth - padding * 2, rowHeight * (properties.length + 1))
   
   // 绘制列分隔线
   ctx.strokeStyle = '#e5e7eb'
@@ -165,19 +188,6 @@ const UTILITY_EXPORT_LOW_WATER_HATCH_STROKE = 'rgba(45, 45, 45, 0.78)'
 /** Column indices in `columnWidths` matching Last water, Curr. water, Water u. */
 const UTILITY_EXPORT_WATER_COL_FIRST = 4
 const UTILITY_EXPORT_WATER_COL_LAST = 6
-/** Exported PNG is at least 1080p: long edge ≥ 1920 and short edge ≥ 1080. */
-const UTILITY_EXPORT_MIN_LONG_EDGE = 1920
-const UTILITY_EXPORT_MIN_SHORT_EDGE = 1080
-
-function utilityExportPixelScale(logicalWidth, logicalHeight) {
-  const shortEdge = Math.min(logicalWidth, logicalHeight)
-  const longEdge = Math.max(logicalWidth, logicalHeight)
-  const needed = Math.max(
-    UTILITY_EXPORT_MIN_SHORT_EDGE / shortEdge,
-    UTILITY_EXPORT_MIN_LONG_EDGE / longEdge
-  )
-  return Math.max(1, Math.ceil(needed))
-}
 
 /** Even 45° crosshatch, clipped to the grey water cells. Phase is global so rows line up. */
 function strokeUtilityLowWaterCrosshatch(ctx, x, y, w, h) {
@@ -249,11 +259,7 @@ export async function exportUtilityBillToImage(sheet, projectName) {
   const totalWidth = columnWidths.reduce((a, b) => a + b, 0) + padding * 2
   const tableRows = Math.max(rows.length, 1)
   const totalHeight = padding + headerBlock + rowHeight * (tableRows + 2) + padding + 40
-  const pixelScale = utilityExportPixelScale(totalWidth, totalHeight)
-
-  canvas.width = Math.round(totalWidth * pixelScale)
-  canvas.height = Math.round(totalHeight * pixelScale)
-  ctx.setTransform(pixelScale, 0, 0, pixelScale, 0, 0)
+  beginExportCanvas(canvas, totalWidth, totalHeight)
 
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, totalWidth, totalHeight)
@@ -483,18 +489,17 @@ export async function exportTaxBillToImage(sheet, projectName) {
   const tableBodyRows = rows.length > 0 ? rows.length : 1
   const totalHeight = padding + headerBlock + rowHeight * (tableRows + 1) + padding
 
-  canvas.width = totalWidth
-  canvas.height = totalHeight
+  beginExportCanvas(canvas, totalWidth, totalHeight)
 
   ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.fillRect(0, 0, totalWidth, totalHeight)
 
   const title = `${projectName || 'Project'} — Tax registration`
   ctx.font = 'bold 22px Arial, sans-serif'
   ctx.fillStyle = '#1f2937'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillText(title, canvas.width / 2, padding + 28)
+  ctx.fillText(title, totalWidth / 2, padding + 28)
 
   const tableStartY = padding + headerBlock
   const headerRowH = 40
@@ -511,14 +516,14 @@ export async function exportTaxBillToImage(sheet, projectName) {
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(padding, tableStartY + headerRowH)
-  ctx.lineTo(canvas.width - padding, tableStartY + headerRowH)
+  ctx.lineTo(totalWidth - padding, tableStartY + headerRowH)
   ctx.stroke()
 
   ctx.font = '14px Arial, sans-serif'
   if (rows.length === 0) {
     ctx.fillStyle = '#9ca3af'
     ctx.textAlign = 'center'
-    ctx.fillText('No rows', canvas.width / 2, tableStartY + headerRowH + rowHeight / 2 + 8)
+    ctx.fillText('No rows', totalWidth / 2, tableStartY + headerRowH + rowHeight / 2 + 8)
   } else {
     rows.forEach((row, index) => {
       const rowTop = tableStartY + headerRowH + index * rowHeight
@@ -539,7 +544,7 @@ export async function exportTaxBillToImage(sheet, projectName) {
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(padding, rowTop + rowHeight)
-      ctx.lineTo(canvas.width - padding, rowTop + rowHeight)
+      ctx.lineTo(totalWidth - padding, rowTop + rowHeight)
       ctx.stroke()
     })
   }
@@ -547,7 +552,7 @@ export async function exportTaxBillToImage(sheet, projectName) {
   const tableHeight = rowHeight * tableBodyRows
   ctx.strokeStyle = '#9ca3af'
   ctx.lineWidth = 2
-  ctx.strokeRect(padding, tableStartY, canvas.width - padding * 2, headerRowH + tableHeight)
+  ctx.strokeRect(padding, tableStartY, totalWidth - padding * 2, headerRowH + tableHeight)
 
   currentX = padding
   for (let i = 0; i < columnWidths.length - 1; i++) {
