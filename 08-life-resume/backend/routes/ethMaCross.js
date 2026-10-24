@@ -17,6 +17,7 @@ const {
   getTradesJournal,
   upsertTrade,
   deleteTrade,
+  dismissPendingSignal,
 } = require('../services/ethMaCross/tradeLogService');
 const {
   EthSubscribePrefsError,
@@ -241,6 +242,16 @@ router.get('/trades-journal', requireAuth, publicReadLimiter, async (req, res) =
 router.put('/trades', requireAuth, pushSubscribeLimiter, async (req, res) => {
   try {
     const data = await upsertTrade(req.player.sub, req.body || {});
+    return res.json({ success: true, data });
+  } catch (err) {
+    return handleTradeError(res, err);
+  }
+});
+
+/** DELETE /api/life-resume/eth-ma-cross/pending/:ref?source=ma|week — 待记隐藏，不写笔记 */
+router.delete('/pending/:ref', requireAuth, pushSubscribeLimiter, async (req, res) => {
+  try {
+    const data = await dismissPendingSignal(req.player.sub, req.params.ref, req.query.source);
     return res.json({ success: true, data });
   } catch (err) {
     return handleTradeError(res, err);

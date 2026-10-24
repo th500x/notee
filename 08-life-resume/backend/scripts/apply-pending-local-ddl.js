@@ -35,6 +35,7 @@ const MIGRATION_FILES = [
   '015-wallet-asset-daily.sql',
   '016-eth-subscribe-week-signals.sql',
   '017-life-entries-tag-xueye-to-rensheng.sql',
+  '018-eth-ma-signal-dismissals.sql',
 ];
 
 const DEFAULT_DB_NAME = '00_notee';

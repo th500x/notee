@@ -350,6 +350,40 @@ async function deleteTrade(accountId, ref, signalSourceRaw) {
   return { deleted: true, signalSource, signalOpenTime: openTime };
 }
 
+/** 从待记拿掉。只对当前账号隐藏，不写操作记录，不删全局信号。 */
+async function dismissPendingSignal(accountId, ref, signalSourceRaw) {
+  const id = assertAccountAllowed(accountId);
+  const signalSource = parseSignalSource(signalSourceRaw || ETH_SIGNAL_SOURCE.MA);
+  if (signalSource === ETH_SIGNAL_SOURCE.WEEK) {
+    const weekId = parseWeekId(ref);
+    const weekRow = await getWeekSignalById(weekId);
+    if (!weekRow) {
+      throw new TradeLogError('SIGNAL_NOT_FOUND', '没有这条周指标信号', 404);
+    }
+    await query(
+      `INSERT INTO eth_ma_signal_dismissals
+        (account_id, signal_source, signal_open_time, week_id)
+       VALUES (?, 'week', ?, ?)
+       ON DUPLICATE KEY UPDATE created_at = created_at`,
+      [id, Number(weekRow.week_open_time), weekId]
+    );
+    return { dismissed: true, signalSource, weekId };
+  }
+  const openTime = parseSignalOpenTime(ref);
+  const signal = await getSignalByOpenTime(openTime);
+  if (!signal) {
+    throw new TradeLogError('SIGNAL_NOT_FOUND', '没有这条交叉信号', 404);
+  }
+  await query(
+    `INSERT INTO eth_ma_signal_dismissals
+      (account_id, signal_source, signal_open_time, week_id)
+     VALUES (?, 'ma', ?, NULL)
+     ON DUPLICATE KEY UPDATE created_at = created_at`,
+    [id, openTime]
+  );
+  return { dismissed: true, signalSource, signalOpenTime: openTime };
+}
+
 module.exports = {
   TradeLogError,
   parseTradeInput,
@@ -357,4 +391,5 @@ module.exports = {
   getTradesJournal,
   upsertTrade,
   deleteTrade,
+  dismissPendingSignal,
 };

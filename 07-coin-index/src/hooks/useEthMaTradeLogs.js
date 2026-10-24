@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   deleteEthMaTrade,
+  dismissEthMaSignal,
   fetchEthMaTradesJournal,
   saveEthMaTrade,
 } from '../services/lifeResumeClient'
@@ -73,6 +74,22 @@ export function useEthMaTradeLogs(accountId) {
     }
   }, [refresh])
 
+  const dismiss = useCallback(async (ref, signalSource = 'ma') => {
+    setBusy(true)
+    setError('')
+    try {
+      const result = await dismissEthMaSignal(ref, signalSource)
+      if (!result.success) {
+        setError(result.error || '删除失败')
+        return false
+      }
+      await refresh()
+      return true
+    } finally {
+      setBusy(false)
+    }
+  }, [refresh])
+
   return {
     recentSignals,
     trades,
@@ -83,5 +100,6 @@ export function useEthMaTradeLogs(accountId) {
     refresh,
     save,
     remove,
+    dismiss,
   }
 }

@@ -139,6 +139,13 @@ export async function deleteEthMaTrade(ref, signalSource = 'ma') {
   })
 }
 
+export async function dismissEthMaSignal(ref, signalSource = 'ma') {
+  const source = encodeURIComponent(signalSource || 'ma')
+  return fetchJson(`/eth-ma-cross/pending/${encodeURIComponent(ref)}?source=${source}`, {
+    method: 'DELETE',
+  })
+}
+
 export function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')

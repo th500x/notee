@@ -176,7 +176,7 @@ function TradeForm({ signal, draft, setDraft, busy, error, onSave, onCancel }) {
 }
 
 function EthMaTradeLogPanel({ accountId }) {
-  const { recentSignals, trades, loading, busy, error, setError, save, remove } = useEthMaTradeLogs(accountId)
+  const { recentSignals, trades, loading, busy, error, setError, save, remove, dismiss } = useEthMaTradeLogs(accountId)
   const [editingKey, setEditingKey] = useState(null)
   const [draft, setDraft] = useState({ ...EMPTY_DRAFT })
 
@@ -276,6 +276,13 @@ function EthMaTradeLogPanel({ accountId }) {
     if (ok && editingKey === tradeKey(trade)) closeForm()
   }
 
+  const handleDismiss = async (signal) => {
+    if (!window.confirm('从待记里去掉这条？不会记成一笔操作。')) return
+    const source = signal.source === ETH_SIGNAL_SOURCE.WEEK ? ETH_SIGNAL_SOURCE.WEEK : ETH_SIGNAL_SOURCE.MA
+    const ref = source === ETH_SIGNAL_SOURCE.WEEK ? signal.weekId : signal.openTime
+    await dismiss(ref, source)
+  }
+
   /** 已记行：手填收益恰好 0 → 灰底；否则随金叉/死叉。待记只看信号方向。 */
   const rowTone = (signal, trade) => {
     if (trade && trade.pnl != null && Number(trade.pnl) === 0) return 'flat'
@@ -291,7 +298,7 @@ function EthMaTradeLogPanel({ accountId }) {
     <div className="eth-ma-trade-log">
       <h3 className="eth-ma-subscribe__title">操作记录</h3>
       <p className="eth-ma-subscribe__hint">
-        只有点「记一笔」才写入。均线交叉与周指标各算一条。最终收益以你填的为准。
+        只有点「记一笔」才写入。点「删除」只把这条从待记拿掉。均线交叉与周指标各算一条。最终收益以你填的为准。
       </p>
       <div className="eth-ma-trade-log__scroll">
         {loading ? (
@@ -310,14 +317,24 @@ function EthMaTradeLogPanel({ accountId }) {
                 {pendingSignals.map((signal) => (
                   <li key={signalKey(signal)} className={`eth-ma-trade-log__row eth-ma-trade-log__row--${signalTone(signal)}`}>
                     <span>{signalLine(signal)}</span>
-                    <button
-                      type="button"
-                      className="eth-ma-subscribe__btn"
-                      disabled={busy}
-                      onClick={() => openCreate(signal)}
-                    >
-                      记一笔
-                    </button>
+                    <span className="eth-ma-trade-log__row-actions">
+                      <button
+                        type="button"
+                        className="eth-ma-subscribe__btn"
+                        disabled={busy}
+                        onClick={() => openCreate(signal)}
+                      >
+                        记一笔
+                      </button>
+                      <button
+                        type="button"
+                        className="eth-ma-subscribe__btn eth-ma-subscribe__btn--ghost"
+                        disabled={busy}
+                        onClick={() => handleDismiss(signal)}
+                      >
+                        删除
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>

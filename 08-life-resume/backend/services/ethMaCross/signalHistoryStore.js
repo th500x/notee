@@ -58,17 +58,20 @@ async function listRecentSignalsForAccount(accountId, limit = ETH_MA_CROSS.RECEN
        s.close,
        s.sma7,
        s.sma25,
-       t.id AS trade_id
+       t.id AS trade_id,
+       d.id AS dismissal_id
      FROM eth_ma_cross_signals s
      LEFT JOIN eth_ma_trade_logs t
        ON t.signal_source = 'ma' AND t.signal_open_time = s.open_time AND t.account_id = ?
+     LEFT JOIN eth_ma_signal_dismissals d
+       ON d.signal_source = 'ma' AND d.signal_open_time = s.open_time AND d.account_id = ?
      ORDER BY s.open_time DESC
      LIMIT ?`,
-    [accountId, cap]
+    [accountId, accountId, cap]
   );
-  return rows.map((row) =>
-    formatCrossSignalRow(row, { hasTrade: Boolean(row.trade_id) })
-  );
+  return rows
+    .filter((row) => !row.dismissal_id)
+    .map((row) => formatCrossSignalRow(row, { hasTrade: Boolean(row.trade_id) }));
 }
 
 module.exports = {

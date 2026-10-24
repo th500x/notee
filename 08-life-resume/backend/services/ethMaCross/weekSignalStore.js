@@ -144,15 +144,20 @@ async function listRecentWeekSignalsForAccount(accountId, limit = 40) {
        w.t0_must,
        w.t1_recommend,
        w.eth_week_avg,
-       t.id AS trade_id
+       t.id AS trade_id,
+       d.id AS dismissal_id
      FROM eth_week_signals w
      LEFT JOIN eth_ma_trade_logs t
        ON t.signal_source = 'week' AND t.week_id = w.week_id AND t.account_id = ?
+     LEFT JOIN eth_ma_signal_dismissals d
+       ON d.signal_source = 'week' AND d.week_id = w.week_id AND d.account_id = ?
      ORDER BY w.week_open_time DESC
      LIMIT ?`,
-    [accountId, cap]
+    [accountId, accountId, cap]
   );
-  return rows.map((row) => formatWeekSignalRow(row, { hasTrade: Boolean(row.trade_id) }));
+  return rows
+    .filter((row) => !row.dismissal_id)
+    .map((row) => formatWeekSignalRow(row, { hasTrade: Boolean(row.trade_id) }));
 }
 
 module.exports = {
