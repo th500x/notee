@@ -1,16 +1,24 @@
 /**
- * 代查公开行情：钱包币值（Uniswap Portfolio）+ 头寸（Liquidity GetWalletPositions）。
+ * 代查公开行情：钱包币值（Uniswap Data API）+ 头寸（Liquidity GetWalletPositions）。
  * 浏览器直连会被对方按来源拦住，所以只在这台后端上请求。
  */
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-const GQL_URL = 'https://interface.gateway.uniswap.org/v1/graphql';
+const DATA_API = 'https://entry-gateway.backend-prod.api.uniswap.org/data.v1.DataApiService';
 const LP_BALANCE_URL =
   'https://entry-gateway.backend-prod.api.uniswap.org/uniswap.liquidity.v2.LiquidityService/GetWalletPositionsBalance';
 const LP_LIST_URL =
   'https://entry-gateway.backend-prod.api.uniswap.org/uniswap.liquidity.v2.LiquidityService/GetWalletPositions';
 
-const GQL_CHAINS = ['ETHEREUM', 'ARBITRUM', 'OPTIMISM', 'POLYGON', 'BASE', 'BNB'];
+const TOKEN_CHAIN_IDS = [1, 10, 137, 42161, 8453, 56];
+const CHAIN_NAMES = {
+  1: 'ETHEREUM',
+  10: 'OPTIMISM',
+  137: 'POLYGON',
+  42161: 'ARBITRUM',
+  8453: 'BASE',
+  56: 'BNB',
+};
 const LP_CHAINS = ['MAINNET', 'ARBITRUM', 'OPTIMISM', 'POLYGON', 'BASE', 'BNB'];
 const CACHE_MS = 45 * 1000;
 const LIST_LIMIT = 50;
@@ -111,31 +119,58 @@ async function postJson(url, body) {
 }
 
 async function fetchWalletTokens(address) {
-  const query = `{
-    portfolios(ownerAddresses: ["${address}"], chains: [${GQL_CHAINS.join(', ')}]) {
-      tokenBalances {
-        denominatedValue { value }
-        token { symbol chain }
-      }
-    }
-  }`;
-  const json = await postJson(GQL_URL, { query });
-  if (json.errors?.length && !json.data?.portfolios) {
+  const body = {
+    walletAccount: {
+      platformAddresses: [{ platform: 'EVM', address }],
+    },
+    chainIds: TOKEN_CHAIN_IDS,
+    modifier: {
+      includeSpamTokens: false,
+      includeSmallBalances: true,
+    },
+  };
+  let balances;
+  let portfolio;
+  try {
+    [balances, portfolio] = await Promise.all([
+      postJson(`${DATA_API}/GetWalletBalances`, body),
+      postJson(`${DATA_API}/GetPortfolio`, { ...body, multichain: true }),
+    ]);
+  } catch (err) {
+    if (err instanceof WalletAssetsError) throw new WalletAssetsError('钱包币值暂时取不到');
+    throw err;
+  }
+
+  const failed = balances?.balance?.failedChainIds || [];
+  if (failed.some((id) => TOKEN_CHAIN_IDS.includes(Number(id)))) {
     throw new WalletAssetsError('钱包币值暂时取不到');
   }
+  const walletUsd = Number(balances?.balance?.tokens?.valueUsd);
+  if (!Number.isFinite(walletUsd) || walletUsd < 0) {
+    throw new WalletAssetsError('钱包币值暂时取不到');
+  }
+
   const tokens = [];
-  let walletUsd = 0;
-  for (const portfolio of json.data?.portfolios || []) {
-    for (const balance of portfolio.tokenBalances || []) {
-      const usd = Number(balance.denominatedValue?.value);
+  let listedUsd = 0;
+  for (const row of portfolio?.portfolio?.multichainBalances || []) {
+    if (row?.isHidden) continue;
+    for (const chain of row.chainBalances || []) {
+      if (chain?.isHidden) continue;
+      const chainId = Number(chain.chainId);
+      if (!TOKEN_CHAIN_IDS.includes(chainId)) continue;
+      const usd = Number(chain.valueUsd);
       if (!Number.isFinite(usd) || usd <= 0) continue;
-      walletUsd += usd;
+      listedUsd += usd;
       tokens.push({
-        symbol: balance.token?.symbol || '?',
-        chain: balance.token?.chain || '',
+        symbol: row.symbol || '?',
+        chain: CHAIN_NAMES[chainId] || String(chainId),
         usd: round2(usd),
       });
     }
+  }
+  const gap = Math.abs(listedUsd - walletUsd);
+  if (gap > 1 && gap / Math.max(walletUsd, 1) > 0.02) {
+    throw new WalletAssetsError('钱包币值暂时取不到');
   }
   tokens.sort((a, b) => b.usd - a.usd);
   return { walletUsd, tokens };
