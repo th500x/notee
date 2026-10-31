@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "relay": "node relay/server.js",
     "db:migrate": "node scripts/apply-pending-local-ddl.js",
     "jobs:daily": "node scripts/run-daily-maintenance.js",
     "jobs:news": "node scripts/run-news-collection.js",
@@ -27,7 +28,9 @@
     "test:lyric-proposals": "node scripts/assert-lyric-proposals.js",
     "test:lyric-favorites": "node scripts/assert-lyric-favorites.js",
     "test:news": "node scripts/assert-news.js",
-    "test:city-events": "node scripts/assert-city-events.js"
+    "test:city-events": "node scripts/assert-city-events.js",
+    "test:relay": "node scripts/assert-relay.js",
+    "smoke:relay": "node scripts/smoke-relay.js"
   },
   "license": "UNLICENSED",
   "private": true,
@@ -41,7 +44,8 @@
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.18.2",
     "node-cron": "^3.0.3",
-    "puppeteer": "22.15.0"
+    "puppeteer": "22.15.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

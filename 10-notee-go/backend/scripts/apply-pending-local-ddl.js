@@ -10,11 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
-if (process.env.NODE_ENV === 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '../.env.production'), override: true });
-}
+require('../utils/loadEnv').loadEnv();
 
 const MIGRATION_FILES = [
   '001-phase0-bootstrap.sql',

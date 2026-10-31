@@ -5,12 +5,7 @@
  * Phase 9: + City Events collector for the Bar hub's sixth tile.
  */
 
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-require('dotenv').config({ path: path.join(__dirname, '.env.local'), override: true });
-if (process.env.NODE_ENV === 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '.env.production'), override: true });
-}
+require('./utils/loadEnv').loadEnv();
 
 const express = require('express');
 const cors = require('cors');

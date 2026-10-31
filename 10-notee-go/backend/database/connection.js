@@ -2,12 +2,7 @@
  * MySQL pool for 10_notee_go (One Line / 今日一句).
  */
 
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config({ path: path.join(__dirname, '../.env.local'), override: true });
-if (process.env.NODE_ENV === 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '../.env.production'), override: true });
-}
+require('../utils/loadEnv').loadEnv();
 
 const mysql = require('mysql2/promise');
 

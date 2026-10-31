@@ -36,6 +36,7 @@ function signPlayerToken(user) {
   return { token, expiresAt: Date.now() + ttl * 1000 };
 }
 
+/** Works on an Express request and on a bare http upgrade request alike. */
 function parseBearer(req) {
   const raw = req.headers && req.headers.authorization;
   if (!raw || typeof raw !== 'string') return null;
@@ -43,22 +44,33 @@ function parseBearer(req) {
   return m ? m[1].trim() : null;
 }
 
+/**
+ * The one check every player token goes through: the API (3010) and the scan relay (3011).
+ * Throws jsonwebtoken's error for a bad signature or an expired token; null when it verifies
+ * but names nobody.
+ */
+function verifyPlayerToken(token) {
+  const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
+  return payload && payload.sub ? payload : null;
+}
+
 function requireAuth(req, res, next) {
   const token = parseBearer(req);
   if (!token) {
     return res.status(401).json({ success: false, error: '未登录或会话已失效', code: 'NO_TOKEN' });
   }
+  let player;
   try {
-    const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
-    if (!payload || !payload.sub) {
-      return res.status(401).json({ success: false, error: '令牌缺少 sub 字段', code: 'BAD_TOKEN' });
-    }
-    req.player = payload;
-    return next();
+    player = verifyPlayerToken(token);
   } catch (err) {
     const code = err && err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'BAD_TOKEN';
     return res.status(401).json({ success: false, error: '会话已失效，请重新登录', code });
   }
+  if (!player) {
+    return res.status(401).json({ success: false, error: '令牌缺少 sub 字段', code: 'BAD_TOKEN' });
+  }
+  req.player = player;
+  return next();
 }
 
 /** Invalid / missing token → req.player = null (no 401). */
@@ -69,8 +81,7 @@ function optionalAuth(req, res, next) {
     return next();
   }
   try {
-    const payload = jwt.verify(token, getSecret(), { algorithms: ['HS256'] });
-    req.player = payload && payload.sub ? payload : null;
+    req.player = verifyPlayerToken(token);
   } catch {
     req.player = null;
   }
@@ -81,6 +92,8 @@ module.exports = {
   getSecret,
   getTokenTtlSeconds,
   signPlayerToken,
+  parseBearer,
+  verifyPlayerToken,
   requireAuth,
   optionalAuth,
   DEFAULT_TTL_SECONDS,
