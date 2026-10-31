@@ -3,7 +3,8 @@
  * 与今日一句 3010 分开重启，互不拖累。共用 backend/.env 的 JWT_SECRET。
  *
  *   cd /www/wwwroot/notee/10-notee-go
- *   pm2 start ecosystem.relay.cjs
+ * 文件名里必须有 .config.cjs。否则 PM2 把它当普通脚本，3011 不会监听。
+ *   pm2 start ecosystem.relay.config.cjs
  *   pm2 save
  *
  * 日常发版：pm2 restart 10-notee-go-relay

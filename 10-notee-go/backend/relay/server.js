@@ -2,7 +2,7 @@
  * 10-notee-go scan relay (port 3011): real-time Scan & Play duels over the internet.
  * Forwards frames between a host phone and its guests and stores nothing (notee-go docs/00-4-3).
  *
- * Its own PM2 process (ecosystem.relay.cjs → 10-notee-go-relay), loopback only; nginx
+ * Its own PM2 process (ecosystem.relay.config.cjs → 10-notee-go-relay), loopback only; nginx
  * `location = /sp/ws` fronts it. Shares backend/.env with the API for JWT_SECRET.
  */
 
