@@ -14,7 +14,14 @@ export function Header({ onShare }) {
             <h1 className="text-3xl font-bold text-gray-900">無限筆記</h1>
             <p className="text-gray-600 mt-2">多功能网页应用平台</p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-end gap-3 sm:gap-4 flex-wrap">
+            <a
+              href="/00-notee-app/"
+              className="text-sm text-gray-800 border border-gray-300 rounded-md px-3 py-1.5 hover:text-blue-600 hover:border-blue-400 transition-colors whitespace-nowrap"
+            >
+              <span aria-hidden="true" style={{ fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", sans-serif', marginRight: '0.25rem' }}>☕️</span>
+              NOTEE APP
+            </a>
             <div 
               className="text-sm text-gray-500 hover:text-blue-600 cursor-pointer transition-colors relative"
               onClick={onShare}

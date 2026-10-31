@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NOTEE APP</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>" />
+  <style>
+    @font-face {
+      font-family: "JYHPHS";
+      src: url("/fonts/JYHPHS.woff2") format("woff2");
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+      unicode-range: U+0000-005B, U+005D-10FFFF;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f9fafb;
+      color: #111827;
+      font-family: "JYHPHS", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    }
+    a { color: inherit; }
+    .wrap { max-width: 80rem; margin: 0 auto; padding: 0 1rem; }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem 0;
+      flex-wrap: wrap;
+    }
+    h1 { margin: 0; font-size: 1.875rem; }
+    h1 a { text-decoration: none; }
+    .sub { margin: 0.5rem 0 0; color: #4b5563; }
+    .tools { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; flex-wrap: wrap; }
+    .app-link {
+      text-decoration: none;
+      font-size: 0.875rem;
+      color: #1f2937;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      white-space: nowrap;
+    }
+    .app-link:hover { color: #2563eb; border-color: #60a5fa; }
+    .emoji { font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif; margin-right: 0.25rem; }
+    .share {
+      border: 0;
+      background: none;
+      padding: 0;
+      font: inherit;
+      font-size: 0.875rem;
+      color: #6b7280;
+      cursor: pointer;
+    }
+    .share:hover { color: #2563eb; }
+    main { padding: 4rem 0 2rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    @media (min-width: 768px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    article {
+      background: #fff;
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+      padding: 1.5rem;
+    }
+    h2 { margin: 0; font-size: 1.5rem; }
+    .ver { margin: 0.35rem 0 0; color: #6b7280; font-size: 0.875rem; }
+    p { line-height: 1.6; }
+    h3 { margin: 1.25rem 0 0.4rem; font-size: 1rem; }
+    ul { margin: 0; padding-left: 1.2rem; line-height: 1.6; }
+    .policy { color: #2563eb; }
+    .policy:hover { color: #1e40af; }
+    footer {
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      margin-top: 4rem;
+    }
+    .foot { padding: 2rem 0; }
+    .copy {
+      margin: 0 0 1rem;
+      font-size: 1.125rem;
+      font-weight: 700;
+    }
+    pre {
+      margin: 0;
+      background: #f9fafb;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap head">
+      <div>
+        <h1><a href="/">無限筆記</a></h1>
+        <p class="sub">多功能网页应用平台</p>
+      </div>
+      <div class="tools">
+        <a class="app-link" href="/00-notee-app/"><span class="emoji" aria-hidden="true">☕️</span>NOTEE APP</a>
+        <button class="share" type="button" id="share">🍺 LOVE &amp; PEACE!</button>
+        <span id="share-note" class="ver" hidden></span>
+      </div>
+    </div>
+  </header>
+  <main>
+    <div class="wrap grid">
+      <article>
+        <h2>Notee Tv</h2>
+        <p class="ver">0.1.0</p>
+        <p>手机、平板、电视和插上的 U 盘里的视频、音乐，都可以在本机播放。可以记住一个网站。没有账号，文件不上传，没有广告。</p>
+        <h3>更新履历</h3>
+        <ul>
+          <li>0.1.0（2026-10-30）：第一版，已送进封闭测试，还没有正式版。</li>
+        </ul>
+        <p><a class="policy" href="/privacy/notee-tv.html">隐私政策</a></p>
+      </article>
+      <article>
+        <h2>Mini Pinyin</h2>
+        <p class="ver">极拼音 · 0.1.0</p>
+        <p>离线拼音输入法。26 键或 9 键，每个音节前几个常用字固定不动。打的字留在手机上，不用网络，没有广告。</p>
+        <h3>更新履历</h3>
+        <ul>
+          <li>0.1.0（2026-10-30）：第一版，已送进封闭测试，还没有正式版。</li>
+        </ul>
+        <p><a class="policy" href="/privacy/notee-pinyin.html">隐私政策</a></p>
+      </article>
+    </div>
+  </main>
+  <footer>
+    <div class="wrap foot">
+      <p class="copy">© 版权申明</p>
+      <pre>無限筆記 (Notee.vip)
+版本：0.1
+作者：CHRIS🇹🇭
+Copyright © 2026 Notee.vip
+保留所有权利</pre>
+      <p><a class="policy" href="/privacy/">隐私政策</a></p>
+    </div>
+  </footer>
+  <script>
+    document.getElementById('share').addEventListener('click', function () {
+      var url = window.location.origin
+      var note = document.getElementById('share-note')
+      function show(text) {
+        note.hidden = false
+        note.textContent = text
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(function () {
+          show('网站链接已复制到剪贴板！')
+        }).catch(function () {
+          show(url)
+        })
+      } else {
+        show(url)
+      }
+    })
+  </script>
+</body>
+</html>
