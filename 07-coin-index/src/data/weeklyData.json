@@ -14857,7 +14857,7 @@
     "ethBtcRatio": 0.029162,
     "btcFromATH": -34.9,
     "marketTrend": "bearish",
-    "updatedAt": "2026-11-02T00:14:48.372Z",
+    "updatedAt": "2026-11-02T02:16:40.102Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -15077,7 +15077,7 @@
       },
       "provisional": false,
       "lagReuse": false,
-      "fetchedAt": "2026-11-02T00:14:48.319Z"
+      "fetchedAt": "2026-11-02T02:16:40.045Z"
     },
     "indicatorScores": {
       "btcWeeklyChange": 0,
@@ -15107,7 +15107,7 @@
     "ethBtcRatio": 0.029095,
     "btcFromATH": -37.1,
     "marketTrend": "bearish",
-    "updatedAt": "2026-11-02T00:14:48.372Z",
+    "updatedAt": "2026-11-02T02:16:40.102Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -15299,7 +15299,7 @@
       }
     },
     "sentimentSource": {
-      "fetchedAt": "2026-11-02T00:14:45.785Z",
+      "fetchedAt": "2026-11-02T02:16:38.478Z",
       "errors": [
         "Ahr999 无 2026-11-01 数据"
       ],
@@ -15316,7 +15316,7 @@
       "lagReuse": true,
       "reusedFrom": "2026-W42",
       "provisional": false,
-      "fetchedAt": "2026-11-02T00:14:48.328Z"
+      "fetchedAt": "2026-11-02T02:16:40.054Z"
     },
     "indicatorScores": {
       "btcWeeklyChange": 0,
