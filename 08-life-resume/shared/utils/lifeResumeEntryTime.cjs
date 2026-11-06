@@ -162,9 +162,10 @@ function groupTimelineSections(entries) {
     .sort(compareTimelineSections)
     .map((section) => ({
       ...section,
-      entries: [...section.entries].sort(
-        (a, b) => (a.timelineSortKey || 0) - (b.timelineSortKey || 0) || a.id - b.id
-      ),
+      entries: [...section.entries].sort((a, b) => {
+        const byTime = (a.timelineSortKey || 0) - (b.timelineSortKey || 0) || (a.id || 0) - (b.id || 0);
+        return section.type === 'year' ? -byTime : byTime;
+      }),
     }));
 }
 
