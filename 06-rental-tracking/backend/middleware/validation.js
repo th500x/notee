@@ -104,7 +104,7 @@ const accountingGalleryListingSchema = Joi.object({
   rentBaht: Joi.string().max(50).allow('').default(''),
   depositBaht: Joi.string().max(50).allow('').default(''),
   areaSqm: Joi.string().max(50).allow('').default(''),
-  layout: Joi.string().valid('', 'studio', '1bedroom').default(''),
+  layout: Joi.string().valid('', 'studio', '1bedroom', 'townhouse').default(''),
   electricFee: Joi.string().max(100).allow('').default(''),
   waterFee: Joi.string().max(100).allow('').default(''),
   tvInch: Joi.string().max(20).allow('').default(''),

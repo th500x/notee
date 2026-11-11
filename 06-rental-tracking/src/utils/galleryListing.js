@@ -7,14 +7,15 @@ import { getGalleryShareMessages } from './galleryShareI18n';
 
 export const GALLERY_LAYOUT_OPTIONS = [
   { value: '', label: '—' },
-  { value: 'studio', label: 'studio' },
-  { value: '1bedroom', label: '1 bedroom' }
+  { value: 'studio', label: 'Studio' },
+  { value: '1bedroom', label: '1 Bedroom' },
+  { value: 'townhouse', label: 'Townhouse' }
 ];
 
 export const GALLERY_TV_TYPE_OPTIONS = [
   { value: '', label: '—' },
-  { value: 'smart', label: 'smart tv' },
-  { value: 'cable', label: 'cable tv' }
+  { value: 'smart', label: 'Smart Tv' },
+  { value: 'cable', label: 'Cable Tv' }
 ];
 
 export const GALLERY_INTERNET_OPTIONS = [
@@ -63,6 +64,7 @@ function normalizeLayout(raw) {
   const v = trimField(raw, 20).toLowerCase();
   if (v === 'studio') return 'studio';
   if (v === '1bedroom' || v === '1 bedroom' || v === '1-bedroom') return '1bedroom';
+  if (v === 'townhouse' || v === 'town house') return 'townhouse';
   return '';
 }
 
@@ -123,6 +125,7 @@ function layoutLabel(layout, locale = 'zh') {
   const m = getGalleryShareMessages(locale);
   if (layout === 'studio') return m.layoutStudio;
   if (layout === '1bedroom') return m.layout1bedroom;
+  if (layout === 'townhouse') return m.layoutTownhouse;
   return '';
 }
 

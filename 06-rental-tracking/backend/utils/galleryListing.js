@@ -34,6 +34,7 @@ function normalizeLayout(raw) {
   const v = trimField(raw, 20).toLowerCase();
   if (v === 'studio') return 'studio';
   if (v === '1bedroom' || v === '1 bedroom' || v === '1-bedroom') return '1bedroom';
+  if (v === 'townhouse' || v === 'town house') return 'townhouse';
   return '';
 }
 
