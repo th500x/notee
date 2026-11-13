@@ -23,17 +23,23 @@ import {
 } from '../utils/galleryShareI18n';
 import { buildOssImageUrl } from '../utils/ossImageUrl';
 
+const GALLERY_LANG_OPTIONS = [
+  { id: 'th', label: '泰文' },
+  { id: 'en', label: '英文' },
+  { id: 'zh', label: '中文' }
+];
+
 /**
  * 账目单租金行 — 公开图库页（OSS 图片 + 系统分享 / 下载）
  * 路径：/06-rental-tracking/gallery/:token
  */
 export default function AccountingGallerySharePage({ token }) {
-  const locale = useMemo(() => resolveGalleryShareLocale(), []);
+  const [locale, setLocale] = useState(() => resolveGalleryShareLocale());
   const t = useMemo(() => getGalleryShareMessages(locale), [locale]);
   const inApp = useMemo(() => detectRestrictedInAppBrowser(), []);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [errorRaw, setErrorRaw] = useState('');
   const [room, setRoom] = useState('');
   const [photos, setPhotos] = useState([]);
   const [listing, setListing] = useState({});
@@ -64,7 +70,7 @@ export default function AccountingGallerySharePage({ token }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setError('');
+      setErrorRaw('');
       try {
         const data = await fetchPublicGallery(token);
         if (cancelled) return;
@@ -73,7 +79,7 @@ export default function AccountingGallerySharePage({ token }) {
         setListing(data.listing || {});
       } catch (err) {
         if (!cancelled) {
-          setError(translateGalleryShareError(locale, err.message || t.errorLoadFailed));
+          setErrorRaw(err.message || '加载图库失败');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -82,7 +88,7 @@ export default function AccountingGallerySharePage({ token }) {
     return () => {
       cancelled = true;
     };
-  }, [token, locale, t.errorLoadFailed]);
+  }, [token]);
 
   const handleOpenInBrowser = useCallback(() => {
     setSaveProgress(t.openInBrowserBusy);
@@ -232,6 +238,7 @@ export default function AccountingGallerySharePage({ token }) {
     waitForShareContinue
   ]);
 
+  const error = errorRaw ? translateGalleryShareError(locale, errorRaw) : '';
   const roomLabel = room?.trim() || '—';
   const hasPhotos = photos.length > 0;
   const listingLines = useMemo(
@@ -254,6 +261,23 @@ export default function AccountingGallerySharePage({ token }) {
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white border-b shadow-sm">
         <div className="max-w-3xl mx-auto px-4 py-5">
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm mb-4" role="group">
+            {GALLERY_LANG_OPTIONS.map((lang) => (
+              <button
+                key={lang.id}
+                type="button"
+                onClick={() => setLocale(lang.id)}
+                aria-pressed={locale === lang.id}
+                className={`flex-1 px-3 py-2 font-medium ${
+                  locale === lang.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
           <h1 className="text-xl font-bold text-gray-900">{t.pageTitle}</h1>
           <p className="text-sm text-gray-600 mt-1">
             {t.roomLabel}：<span className="font-semibold text-gray-900">{roomLabel}</span>
