@@ -15357,7 +15357,7 @@
     "ethBtcRatio": 0.029522,
     "btcFromATH": -38.8,
     "marketTrend": "bearish",
-    "updatedAt": "2026-11-16T06:20:25.355Z",
+    "updatedAt": "2026-11-16T08:22:17.376Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -15577,7 +15577,7 @@
       },
       "provisional": false,
       "lagReuse": false,
-      "fetchedAt": "2026-11-16T06:20:25.305Z"
+      "fetchedAt": "2026-11-16T08:22:17.317Z"
     },
     "indicatorScores": {
       "btcWeeklyChange": 0,
@@ -15607,7 +15607,7 @@
     "ethBtcRatio": 0.02758,
     "btcFromATH": -43.2,
     "marketTrend": "bearish",
-    "updatedAt": "2026-11-16T06:20:25.355Z",
+    "updatedAt": "2026-11-16T08:22:17.376Z",
     "dataSource": "coingecko_api_v2_incremental",
     "rawData": {
       "btc": {
@@ -15796,16 +15796,18 @@
             "ma": 65854.03
           }
         ]
+      },
+      "ahr999": {
+        "date": "2026-11-15",
+        "value": 0.32
       }
     },
     "sentimentSource": {
-      "fetchedAt": "2026-11-16T06:20:21.347Z",
-      "errors": [
-        "Ahr999 无 2026-11-15 数据"
-      ],
+      "fetchedAt": "2026-11-16T08:22:15.376Z",
       "fearGreed": "alternative.me_fng",
       "mayer": "binance_btcusdt",
-      "fourYear": "binance_btcusdt"
+      "fourYear": "binance_btcusdt",
+      "ahr999": "ahr999.aix4u.com"
     },
     "fearGreedIndex": 23,
     "mayerMultiple": 0.96,
@@ -15816,20 +15818,22 @@
       "lagReuse": true,
       "reusedFrom": "2026-W44",
       "provisional": false,
-      "fetchedAt": "2026-11-16T06:20:25.314Z"
+      "fetchedAt": "2026-11-16T08:22:17.327Z"
     },
     "indicatorScores": {
       "btcWeeklyChange": 0,
       "btcFromATH": 2,
       "fearGreedIndex": 1,
       "mayerMultiple": 0,
+      "ahr999": 2,
       "btcFourYearIndex": 2,
       "fedRate": -1,
       "bojRate": 0
     },
-    "totalScore": 4,
-    "personalRating": 4,
+    "totalScore": 6,
+    "personalRating": 6,
     "t0Must": null,
-    "t1Recommend": null
+    "t1Recommend": null,
+    "ahr999": 0.32
   }
 }
