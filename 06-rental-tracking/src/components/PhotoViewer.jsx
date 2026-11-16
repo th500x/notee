@@ -1,20 +1,55 @@
-import { useState } from 'react'
+import { useState, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { buildOssImageUrl } from '../utils/ossImageUrl'
 
 /**
- * 照片查看器组件
- * 
- * 功能：
- * - 显示照片大图
- * - 支持多张照片左右切换
- * - 点击背景关闭
+ * 照片查看器
+ * 账目单页面会横滑、缩放。按整页 fixed 铺开时，大图会落到当前屏幕外面，只在角落露出一块。
+ * 这里按手机当前看得见的区域铺满，大图在这块区域里居中。
  */
+
+function readVisibleScreen() {
+  const vv = window.visualViewport
+  if (!vv) {
+    return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
+  }
+  return {
+    top: vv.offsetTop,
+    left: vv.offsetLeft,
+    width: vv.width,
+    height: vv.height
+  }
+}
+
+function useVisibleScreen() {
+  const [screen, setScreen] = useState(readVisibleScreen)
+  useLayoutEffect(() => {
+    const update = () => setScreen(readVisibleScreen())
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
+    }
+  }, [])
+  return screen
+}
+
 function PhotoViewer({ photos, initialIndex = 0, onClose }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
+  const screen = useVisibleScreen()
 
   if (!photos || photos.length === 0) return null
 
   const currentPhoto = photos[currentIndex]
+  const frameW = Math.max(1, Math.round(screen.width * 0.92))
+  const frameH = Math.max(1, Math.round(screen.height * 0.86))
 
   const handlePrevious = (e) => {
     e.stopPropagation()
@@ -36,12 +71,17 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
     document.body.removeChild(link)
   }
 
-  return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center"
+  const node = (
+    <div
+      className="fixed z-[70] bg-black bg-opacity-90 overflow-hidden"
+      style={{
+        top: `${screen.top}px`,
+        left: `${screen.left}px`,
+        width: `${screen.width}px`,
+        height: `${screen.height}px`
+      }}
       onClick={onClose}
     >
-      {/* 关闭按钮 */}
       <button
         onClick={onClose}
         className="absolute top-4 right-4 text-white text-3xl hover:text-gray-300 z-10"
@@ -50,7 +90,6 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         ✕
       </button>
 
-      {/* 照片信息 */}
       <div className="absolute top-4 left-4 text-white z-10">
         <p className="text-sm">
           {currentIndex + 1} / {photos.length}
@@ -60,7 +99,6 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         )}
       </div>
 
-      {/* 下载按钮 */}
       <button
         onClick={handleDownload}
         className="absolute top-4 right-20 text-white text-xl hover:text-gray-300 z-10"
@@ -69,67 +107,67 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         ⬇️
       </button>
 
-      {/* 左箭头 */}
       {photos.length > 1 && (
         <button
           onClick={handlePrevious}
-          className="absolute left-4 text-white text-5xl hover:text-gray-300 z-10"
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-5xl hover:text-gray-300 z-10"
           title="上一张"
         >
           ‹
         </button>
       )}
 
-      {/* 照片 */}
-      <div 
-        className="max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+      <img
+        src={buildOssImageUrl(currentPhoto.url, 'view')}
+        alt={currentPhoto.name || '照片'}
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-contain rounded-lg"
+        style={{ maxWidth: `${frameW}px`, maxHeight: `${frameH}px` }}
         onClick={(e) => e.stopPropagation()}
-      >
-        <img
-          src={buildOssImageUrl(currentPhoto.url, 'view')}
-          alt={currentPhoto.name || '照片'}
-          className="max-w-full max-h-[90vh] object-contain rounded-lg"
-        />
-      </div>
+      />
 
-      {/* 右箭头 */}
       {photos.length > 1 && (
         <button
           onClick={handleNext}
-          className="absolute right-4 text-white text-5xl hover:text-gray-300 z-10"
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-5xl hover:text-gray-300 z-10"
           title="下一张"
         >
           ›
         </button>
       )}
 
-      {/* 缩略图导航 */}
       {photos.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
-          {photos.map((photo, index) => (
-            <button
-              key={index}
-              onClick={(e) => {
-                e.stopPropagation()
-                setCurrentIndex(index)
-              }}
-              className={`w-16 h-16 rounded-md overflow-hidden border-2 transition-all ${
-                index === currentIndex 
-                  ? 'border-blue-500 scale-110' 
-                  : 'border-white border-opacity-50 hover:border-opacity-100'
-              }`}
-            >
-              <img
-                src={buildOssImageUrl(photo.url, 'thumb')}
-                alt={`缩略图 ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
+        <div
+          className="absolute bottom-3 left-1/2 z-10 max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex gap-2">
+            {photos.map((photo, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setCurrentIndex(index)
+                }}
+                className={`w-16 h-16 shrink-0 rounded-md overflow-hidden border-2 transition-all ${
+                  index === currentIndex
+                    ? 'border-blue-500 scale-110'
+                    : 'border-white border-opacity-50 hover:border-opacity-100'
+                }`}
+              >
+                <img
+                  src={buildOssImageUrl(photo.url, 'thumb')}
+                  alt={`缩略图 ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
   )
+
+  return createPortal(node, document.body)
 }
 
 export default PhotoViewer
