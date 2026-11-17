@@ -26,15 +26,34 @@ describe('parseCommissionAmountFromNote', () => {
 })
 
 describe('getMonthlyExpenseTipLabels', () => {
-  it('marks commission and other expenses on separate lines', () => {
-    const property = {
+  it('uses rent when 佣金 has no number, and only marks 其他支出 from 3000', () => {
+    const shown = {
+      monthlyRent: 6000,
+      records: [
+        { date: '2026-10', note: '佣金', expenses: 6000 },
+        { date: '2026-10', note: '更换水龙头', expenses: 3000 },
+      ],
+    }
+    const hidden = {
       monthlyRent: 6000,
       records: [
         { date: '2026-10', note: '佣金', expenses: 6000 },
         { date: '2026-10', note: '更换水龙头', expenses: 1740 },
       ],
     }
-    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['佣金支出', '其他支出'])
+    assert.deepEqual(getMonthlyExpenseTipLabels(shown, '2026-10'), ['佣金支出', '其他支出'])
+    assert.deepEqual(getMonthlyExpenseTipLabels(hidden, '2026-10'), ['佣金支出'])
+  })
+
+  it('prefers the number after 佣金 over the rent', () => {
+    const property = {
+      monthlyRent: 6000,
+      records: [
+        { date: '2026-10', note: '佣金8000', expenses: 8000 },
+        { date: '2026-10', note: '维修', expenses: 2000 },
+      ],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['佣金支出'])
   })
 
   it('shows only 其他支出 when the month is not commission', () => {
