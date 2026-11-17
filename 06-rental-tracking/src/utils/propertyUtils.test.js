@@ -48,12 +48,25 @@ describe('getMonthlyExpenseTipLabels', () => {
     assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['其他支出'])
   })
 
-  it('hides the tip when the month total is under 2000', () => {
+  it('marks 佣金支出 without an amount floor', () => {
     const property = {
       monthlyRent: 6000,
-      records: [{ date: '2026-10', note: '维修', expenses: 890 }],
+      records: [{ date: '2026-10', note: '佣金', expenses: 100 }],
     }
-    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), [])
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['佣金支出'])
+  })
+
+  it('shows 其他支出 from 500 and hides anything smaller', () => {
+    const atFloor = {
+      monthlyRent: 6000,
+      records: [{ date: '2026-10', note: '维修', expenses: 500 }],
+    }
+    const belowFloor = {
+      monthlyRent: 6000,
+      records: [{ date: '2026-10', note: '维修', expenses: 499 }],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(atFloor, '2026-10'), ['其他支出'])
+    assert.deepEqual(getMonthlyExpenseTipLabels(belowFloor, '2026-10'), [])
   })
 
   it('does not mark 半佣 as commission', () => {

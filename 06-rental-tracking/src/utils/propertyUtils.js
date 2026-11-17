@@ -24,14 +24,13 @@ export function getAllProperties(project) {
   return allProperties
 }
 
-/** 房源列表支出提示：当月支出合计达到该金额（泰铢）才显示 */
-export const MONTHLY_EXPENSE_TIP_THRESHOLD = 2000
+/** 房源列表「其他支出」：扣掉佣金后的费用达到该金额（泰铢）才显示 */
+export const OTHER_EXPENSE_TIP_THRESHOLD = 500
 
 /**
  * 月视图里，房源编号下方的红色提示。
- * 当月支出合计不足 2000：不显示。
- * 达到 2000 且备注含「佣金」：显示「佣金支出」（半佣不含「佣金」，不标）。
- * 达到 2000 且扣掉佣金后仍有费用：统一显示「其他支出」。
+ * 备注含「佣金」：显示「佣金支出」，不看金额（半佣不含「佣金」，不标）。
+ * 扣掉佣金后的费用 ≥ 500：统一显示「其他支出」。
  * 两行可以同时出现。不再单独标大额或物业。
  *
  * @param {Object} property
@@ -42,9 +41,6 @@ export function getMonthlyExpenseTipLabels(property, monthKey) {
   if (!property || !monthKey) return []
   const records = (property.records || []).filter((r) => r.date === monthKey)
   if (records.length === 0) return []
-
-  const totalExpenses = records.reduce((sum, r) => sum + (Number(r.expenses) || 0), 0)
-  if (totalExpenses < MONTHLY_EXPENSE_TIP_THRESHOLD) return []
 
   const labels = []
   const notesJoined = records.map((r) => String(r.note || '')).join('\n')
@@ -61,7 +57,7 @@ export function getMonthlyExpenseTipLabels(property, monthKey) {
       otherExpenses += Math.max(0, expense - commission)
     }
   }
-  if (otherExpenses > 0) labels.push('其他支出')
+  if (otherExpenses >= OTHER_EXPENSE_TIP_THRESHOLD) labels.push('其他支出')
   return labels
 }
 
