@@ -4,6 +4,7 @@ import {
   parseCommissionAmountFromNote,
   sumCommissionFromProjects,
   isYearMonthInView,
+  getMonthlyExpenseTipLabels,
 } from './propertyUtils.js'
 
 describe('parseCommissionAmountFromNote', () => {
@@ -21,6 +22,46 @@ describe('parseCommissionAmountFromNote', () => {
     assert.equal(parseCommissionAmountFromNote('佣金5000', 8000), 5000)
     assert.equal(parseCommissionAmountFromNote('半佣 2,500', 8000), null)
     assert.equal(parseCommissionAmountFromNote('佣金：4500.5', 8000), 4500.5)
+  })
+})
+
+describe('getMonthlyExpenseTipLabels', () => {
+  it('marks commission and other expenses on separate lines', () => {
+    const property = {
+      monthlyRent: 6000,
+      records: [
+        { date: '2026-10', note: '佣金', expenses: 6000 },
+        { date: '2026-10', note: '更换水龙头', expenses: 1740 },
+      ],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['佣金支出', '其他支出'])
+  })
+
+  it('shows only 其他支出 when the month is not commission', () => {
+    const property = {
+      monthlyRent: 6000,
+      records: [
+        { date: '2026-10', note: '物业费', expenses: 1740 },
+        { date: '2026-10', note: '更换水槽', expenses: 890 },
+      ],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['其他支出'])
+  })
+
+  it('hides the tip when the month total is under 2000', () => {
+    const property = {
+      monthlyRent: 6000,
+      records: [{ date: '2026-10', note: '维修', expenses: 890 }],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), [])
+  })
+
+  it('does not mark 半佣 as commission', () => {
+    const property = {
+      monthlyRent: 6000,
+      records: [{ date: '2026-10', note: '半佣已付', expenses: 3000 }],
+    }
+    assert.deepEqual(getMonthlyExpenseTipLabels(property, '2026-10'), ['其他支出'])
   })
 })
 
