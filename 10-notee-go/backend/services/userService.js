@@ -17,13 +17,14 @@ const {
   capacityOfPrefix,
 } = require('../lib/loginId');
 const { assertPassword, hashPassword, verifyPassword } = require('../lib/password');
+const { tierCode, isPass } = require('../lib/partyPass');
 const { signPlayerToken } = require('../middleware/auth');
 const { httpError } = require('../lib/httpError');
 const { deleteUser: deletePourMedia } = require('./pourMediaStore');
 
 /** Never select `password_hash` into anything that can reach a response. */
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
-                   party_pass, notee_points, created_at, updated_at, deleted_at`;
+                   party_pass, party_marks_total, notee_points, created_at, updated_at, deleted_at`;
 
 const CANDIDATES_DEFAULT = 9;
 const CANDIDATES_MAX = 9;
@@ -45,7 +46,9 @@ function rowToUser(row) {
     gender: row.gender,
     avatarId: row.avatar_id,
     status: row.status,
-    partyPass: Boolean(Number(row.party_pass)),
+    partyTier: tierCode(row.party_pass),
+    partyPass: isPass(tierCode(row.party_pass)),
+    partyMarksTotal: Number(row.party_marks_total) || 0,
     noteePoints: Number(row.notee_points) || 0,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,

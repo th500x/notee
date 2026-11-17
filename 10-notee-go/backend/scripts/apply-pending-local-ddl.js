@@ -34,6 +34,7 @@ const MIGRATION_FILES = [
   '019-city-events-place.sql',
   '020-lyric-favorite-bag.sql',
   '021-users-entitlements.sql',
+  '022-party-pass-tier.sql',
 ];
 
 const DEFAULT_DB_NAME = '10_notee_go';

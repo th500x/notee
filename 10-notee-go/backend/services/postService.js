@@ -16,13 +16,14 @@ const { assertPourPayload, rejectBannedKeys, POUR_TEST_EDIT_STATS } = require('.
 const { assertMealPayload } = require('../lib/mealPayload');
 const { assertFlagId } = require('../lib/profileRules');
 const { requireActiveUser } = require('./userService');
+const { tierCode } = require('../lib/partyPass');
 const stampGiftCatalog = require('../lib/stampGiftCatalog');
 
 const FEED_DEFAULT_LIMIT = 20;
 const FEED_MAX_LIMIT = 50;
 
 /** TEST-ONLY. Deleting a pour post frees that UTC+7 day slot. Set false after QA. */
-const POUR_TEST_RESYNC_AFTER_DELETE = true;
+const POUR_TEST_RESYNC_AFTER_DELETE = false;
 /** Pours per user per UTC+7 day. Lines stay 1. Soft-delete still occupies a slot unless the test flag is on. */
 const POUR_DAY_LIMIT = 2;
 
@@ -111,6 +112,7 @@ function rowToPost(row, { includeDeleted = false, includeResonatedByMe = false }
       gender: row.gender,
       avatarId: row.avatar_id,
       loginId: row.login_id || null,
+      partyTier: tierCode(row.party_pass),
     };
   }
   return post;
@@ -480,7 +482,7 @@ async function listMine(userId, queryIn = {}) {
   const params = [userId, userId];
   let sql = `
     SELECT ${postCols('p')},
-           u.nick_name, u.gender, u.avatar_id, u.login_id,
+           u.nick_name, u.gender, u.avatar_id, u.login_id, u.party_pass,
            (r.user_id IS NOT NULL) AS resonated_by_me
     FROM posts p
     INNER JOIN users u ON u.id = p.user_id
@@ -632,7 +634,7 @@ async function getFeed(queryIn = {}, opts = {}) {
   const params = [];
   let sql = `
     SELECT ${postCols('p')},
-           u.nick_name, u.gender, u.avatar_id, u.login_id`;
+           u.nick_name, u.gender, u.avatar_id, u.login_id, u.party_pass`;
 
   if (viewerUserId) {
     sql += `,
