@@ -20,6 +20,7 @@ const lyricFavoritesRouter = require('./lyricFavorites');
 const newsRouter = require('./news');
 const cityEventsRouter = require('./cityEvents');
 const translateRouter = require('./translate');
+const gameResultsRouter = require('./gameResults');
 const { getFeed } = require('../services/postService');
 const { sendServiceError } = require('../lib/sendServiceError');
 
@@ -51,6 +52,7 @@ router.use('/lyric', lyricFavoritesRouter);
 router.use('/news', newsRouter);
 router.use('/city-events', cityEventsRouter);
 router.use('/translate', translateRouter);
+router.use('/game-results', gameResultsRouter);
 
 /** Design path: GET /api/notee-go/feed — optional Bearer for resonatedByMe + block filter */
 router.get('/feed', publicReadLimiter, optionalAuth, async (req, res) => {

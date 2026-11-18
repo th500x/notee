@@ -21,6 +21,7 @@ const { tierCode, isPass } = require('../lib/partyPass');
 const { signPlayerToken } = require('../middleware/auth');
 const { httpError } = require('../lib/httpError');
 const { deleteUser: deletePourMedia } = require('./pourMediaStore');
+const { deleteRankingsForUser } = require('./gameResultService');
 
 /** Never select `password_hash` into anything that can reach a response. */
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
@@ -386,6 +387,7 @@ async function deleteMe(userId) {
   await query(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
   await query(`DELETE FROM lyric_favorite_bags WHERE user_id = ?`, [userId]);
+  await deleteRankingsForUser(userId);
   await deletePourMedia(userId).catch((err) => {
     console.error('[notee-go/pour-media] deleteMe', err.message);
   });
@@ -423,6 +425,7 @@ async function eraseUnregisteredUser(userId) {
     await exec(`DELETE FROM pour_bags WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM pet_bags WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM lyric_favorite_bags WHERE user_id = ?`, [userId]);
+    await exec(`DELETE FROM game_results WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM lyric_proposals WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM gift_claims WHERE user_id = ?`, [userId]);
     await exec(`DELETE FROM gift_campaign_targets WHERE user_id = ?`, [userId]);

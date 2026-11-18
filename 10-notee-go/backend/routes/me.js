@@ -7,6 +7,7 @@ const { requireAuth } = require('../middleware/auth');
 const { authWriteLimiter } = require('../middleware/rateLimit');
 const { getMe, patchMe, deleteMe } = require('../services/userService');
 const { submitPlayPurchase, restorePlayPurchases } = require('../services/partyPassService');
+const { deleteRankingsForUser } = require('../services/gameResultService');
 const { sendServiceError } = require('../lib/sendServiceError');
 
 const router = express.Router();
@@ -35,6 +36,15 @@ router.delete('/', requireAuth, authWriteLimiter, async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     sendServiceError(res, err, '[notee-go/me]');
+  }
+});
+
+router.delete('/rankings', requireAuth, authWriteLimiter, async (req, res) => {
+  try {
+    const deleted = await deleteRankingsForUser(req.player.sub);
+    res.json({ success: true, data: { deleted } });
+  } catch (err) {
+    sendServiceError(res, err, '[notee-go/rankings]');
   }
 });
 
