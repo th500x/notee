@@ -23,7 +23,7 @@ const FORBIDDEN = ['partyId', 'userId', 'loginId', 'user_id', 'login_id'];
 
 function prepareRounds(rounds, userId, now = Date.now()) {
   if (!Array.isArray(rounds) || rounds.length < 1 || rounds.length > BATCH_MAX) {
-    throw httpError(400, '成绩条数不对', 'BAD_ROUNDS');
+    throw httpError(400, '无成绩', 'BAD_ROUNDS');
   }
   return rounds.map((row) => prepareOne(row, userId, now));
 }
