@@ -1,9 +1,10 @@
 /**
- * Accounts: silent open, login id candidates, sign-up, sign-in.
+ * Accounts: silent open, login id candidates, sign-up, sign-in (short id or bound Google).
  *
  * None of these may sit behind requireAuth — the client has no token yet on a fresh device.
  * Sign-up uses optionalAuth: it binds credentials to the caller's silent account, so the App
  * opens one first (OneLineSession.ensureAuthed) rather than letting this route create a second.
+ * Binding Google is on /me: it needs the account it binds to.
  */
 
 const express = require('express');
@@ -12,6 +13,7 @@ const {
   pickLoginIdCandidates,
   registerLoginId,
   loginWithLoginId,
+  loginWithGoogle,
 } = require('../services/userService');
 const {
   authWriteLimiter,
@@ -63,6 +65,16 @@ router.post('/register', credentialLimiter, optionalAuth, async (req, res) => {
 router.post('/login', credentialLimiter, loginIdAttemptLimiter, async (req, res) => {
   try {
     const data = await loginWithLoginId(req.body);
+    res.json({ success: true, data });
+  } catch (err) {
+    sendServiceError(res, err, '[notee-go/auth]');
+  }
+});
+
+/** `{ idToken, deviceKey? }` → same shape as /login. */
+router.post('/google', credentialLimiter, async (req, res) => {
+  try {
+    const data = await loginWithGoogle(req.body);
     res.json({ success: true, data });
   } catch (err) {
     sendServiceError(res, err, '[notee-go/auth]');

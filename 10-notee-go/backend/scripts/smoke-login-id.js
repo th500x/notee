@@ -38,11 +38,12 @@ async function main() {
   const first = await pickLoginIdCandidates({ count: 9 });
   checks.candidateCount = first.loginIds.length === 9 && first.partial === false;
   checks.candidateFormat = first.loginIds.every((id) => REGULAR.test(id));
-  checks.candidateSamePrefix = first.loginIds.every((id) => id[0] === first.loginIds[0]);
+  const prefix = first.loginIds[0][0];
+  checks.candidateSamePrefix = first.loginIds.every((id) => id[0] === prefix);
 
   const refreshed = await pickLoginIdCandidates({ count: 9, exclude: first.loginIds });
   checks.refreshExcludes = refreshed.loginIds.every((id) => !first.loginIds.includes(id));
-  checks.refreshSamePrefix = refreshed.loginIds.every((id) => id[0] === first.loginIds[0]);
+  checks.refreshSamePrefix = refreshed.loginIds.every((id) => id[0] === prefix);
 
   const loginId = first.loginIds[0];
   const registered = await registerLoginId(a.user.id, { loginId, password: PASSWORD });

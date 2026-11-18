@@ -17,16 +17,16 @@ const { isReservedLoginId, isLionLoginId, RESERVED_LOGIN_IDS } = require('./rese
 
 const LOGIN_ID_LENGTH = 4;
 const REGULAR_FIRST_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const VIP_FIRST_CHARSET = '0123456789';
+const HONOR_FIRST_CHARSET = '0123456789';
 const TAIL_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const PREFIX_CAPACITY = TAIL_CHARSET.length ** 3; // 36³ = 46656
 
 const REGULAR_PATTERN = /^[A-Z][A-Z0-9]{3}$/;
+const HONOR_PATTERN = /^[0-9][A-Z0-9]{3}$/;
 
 const FIRST_CHARSET_BY_POOL = {
   regular: REGULAR_FIRST_CHARSET,
-  vip: VIP_FIRST_CHARSET,
-  honor: VIP_FIRST_CHARSET,
+  honor: HONOR_FIRST_CHARSET,
 };
 
 const RESERVED_PER_PREFIX = (() => {
@@ -62,6 +62,32 @@ function assertRegularLoginId(raw) {
   }
   if (isReservedLoginId(loginId)) {
     throw httpError(400, '该短号不可注册，请另选一个', 'RESERVED_LOGIN_ID');
+  }
+  return loginId;
+}
+
+/** A letter id from sign-up. Letter lions (AAAA–ZZZZ) are operator grants, not this. */
+function isRegularLoginId(loginId) {
+  return REGULAR_PATTERN.test(loginId) && !isLionLoginId(loginId);
+}
+
+/** A digit id from the honor rename. Digit lions (0000–9999) are operator grants, not this. */
+function isHonorLoginId(loginId) {
+  return HONOR_PATTERN.test(loginId) && !isLionLoginId(loginId);
+}
+
+/**
+ * Normalize + validate the id picked in the honor rename. Membership in the offered batch is
+ * checked by the caller; this only guards the shape.
+ * @returns {string} normalized login id
+ */
+function assertHonorLoginId(raw) {
+  const loginId = normalizeLoginId(raw);
+  if (!HONOR_PATTERN.test(loginId)) {
+    throw httpError(400, '荣耀短号须为 4 位：首位数字，其余字母或数字', 'BAD_LOGIN_ID');
+  }
+  if (isReservedLoginId(loginId)) {
+    throw httpError(400, '该短号不可领取，请另选一个', 'RESERVED_LOGIN_ID');
   }
   return loginId;
 }
@@ -122,13 +148,16 @@ function randomLoginIdBatch({ size, prefix, skip = new Set() }) {
 module.exports = {
   LOGIN_ID_LENGTH,
   REGULAR_FIRST_CHARSET,
-  VIP_FIRST_CHARSET,
+  HONOR_FIRST_CHARSET,
   TAIL_CHARSET,
   PREFIX_CAPACITY,
   FIRST_CHARSET_BY_POOL,
   charsetForPool,
   normalizeLoginId,
+  isRegularLoginId,
+  isHonorLoginId,
   assertRegularLoginId,
+  assertHonorLoginId,
   assertLionLoginId,
   capacityOfPrefix,
   currentPrefixFromOccupancy,

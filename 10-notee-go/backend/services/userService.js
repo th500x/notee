@@ -1,11 +1,12 @@
 /**
- * One Line users: silent open by deviceKey hash; explicit login id + password; profile PATCH;
- * soft delete. One row per person — signing up binds credentials to the existing silent UUID
- * instead of creating a second account (notee-go/docs/00-1-Account.md).
+ * One Line users: silent open by deviceKey hash; explicit login id + password; Google as the
+ * second key; profile PATCH; soft delete. One row per person — signing up or binding Google
+ * attaches to the existing UUID instead of creating a second account
+ * (notee-go/docs/00-core/00-1-Account.md).
  */
 
 const crypto = require('crypto');
-const { query, transaction } = require('../database/connection');
+const { query, transaction, isDuplicateKey } = require('../database/connection');
 const { assertDeviceKey, hashDeviceKey } = require('../lib/deviceKey');
 const { mergeProfilePatch } = require('../lib/profileRules');
 const {
@@ -18,14 +19,20 @@ const {
 } = require('../lib/loginId');
 const { assertPassword, hashPassword, verifyPassword } = require('../lib/password');
 const { tierCode, isPass } = require('../lib/partyPass');
+const { honorRenameState } = require('../lib/honorRename');
+const { verifyGoogleIdToken } = require('../lib/googleIdToken');
 const { signPlayerToken } = require('../middleware/auth');
 const { httpError } = require('../lib/httpError');
 const { deleteUser: deletePourMedia } = require('./pourMediaStore');
 const { deleteRankingsForUser } = require('./gameResultService');
 
-/** Never select `password_hash` into anything that can reach a response. */
+/**
+ * Never select `password_hash` into anything that can reach a response.
+ * `google_sub` and `honor_renamed_at` only feed the googleBound / honorRename flags.
+ */
 const USER_COLS = `id, login_id, nick_name, flag_id, gender, avatar_id, status,
-                   party_pass, party_marks_total, notee_points, created_at, updated_at, deleted_at`;
+                   party_pass, party_marks_total, notee_points, google_sub, honor_renamed_at,
+                   created_at, updated_at, deleted_at`;
 
 const CANDIDATES_DEFAULT = 9;
 const CANDIDATES_MAX = 9;
@@ -36,6 +43,16 @@ const CANDIDATE_ROUNDS = 8;
  * Short-id accounts are never swept.
  */
 const SILENT_IDLE_DAYS = 30;
+
+/** Needs `login_id`, `party_pass`, `google_sub`, `honor_renamed_at` on the row. */
+function honorStateOf(row) {
+  return honorRenameState({
+    tier: tierCode(row.party_pass),
+    loginId: row.login_id || null,
+    googleBound: Boolean(row.google_sub),
+    renamed: Boolean(row.honor_renamed_at),
+  });
+}
 
 function rowToUser(row) {
   if (!row) return null;
@@ -51,6 +68,8 @@ function rowToUser(row) {
     partyPass: isPass(tierCode(row.party_pass)),
     partyMarksTotal: Number(row.party_marks_total) || 0,
     noteePoints: Number(row.notee_points) || 0,
+    googleBound: Boolean(row.google_sub),
+    honorRename: honorStateOf(row),
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
   };
@@ -230,7 +249,7 @@ async function registerLoginId(userId, body) {
       [loginId, passwordHash, userId]
     );
   } catch (err) {
-    if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062)) {
+    if (isDuplicateKey(err)) {
       throw httpError(409, '该短号刚被占用，请返回重新选择', 'LOGIN_ID_TAKEN');
     }
     throw err;
@@ -270,7 +289,7 @@ async function grantLionLoginId(userId, rawLoginId) {
       [loginId, userId]
     );
   } catch (err) {
-    if (err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062)) {
+    if (isDuplicateKey(err)) {
       throw httpError(409, '该狮子号已被占用', 'LOGIN_ID_TAKEN');
     }
     throw err;
@@ -330,12 +349,70 @@ async function loginWithLoginId(body) {
     throw rejected;
   }
 
-  if (body.deviceKey !== undefined) {
-    await bindDeviceKey(row.id, hashDeviceKey(assertDeviceKey(body.deviceKey)));
+  return completeSignIn(row, body.deviceKey);
+}
+
+/** Every sign-in ends here: the device moves to this account (§3.4), then a fresh token. */
+async function completeSignIn(row, deviceKeyRaw) {
+  if (deviceKeyRaw !== undefined) {
+    await bindDeviceKey(row.id, hashDeviceKey(assertDeviceKey(deviceKeyRaw)));
   }
   await touchLastSeen(row.id);
-
   return signSession(row);
+}
+
+/**
+ * Sign in on a new device with the Google account bound in Settings. Only an account that
+ * already bound this Google answers; this never opens or binds one.
+ * @param {{ idToken: string, deviceKey?: string }} body
+ */
+async function loginWithGoogle(body) {
+  const { sub } = await verifyGoogleIdToken(body && body.idToken);
+  const rows = await query(`SELECT ${USER_COLS} FROM users WHERE google_sub = ? LIMIT 1`, [sub]);
+  const row = rows[0];
+  if (!row || row.deleted_at || row.status === 'deleted') {
+    throw httpError(404, '这个 Google 账号还没有绑定短号', 'GOOGLE_NOT_BOUND');
+  }
+  if (row.status === 'banned') {
+    throw httpError(403, '账号已封禁', 'USER_BANNED');
+  }
+  return completeSignIn(row, body.deviceKey);
+}
+
+/**
+ * Second key for a short-id account (§4). One Google account per Notee account, both ways.
+ * There is no unbind; DELETE /me releases it.
+ * @param {{ idToken: string }} body
+ */
+async function bindGoogle(userId, body) {
+  const current = await requireActiveUser(userId);
+  if (!current.login_id) {
+    throw httpError(409, '先注册短号，再绑定 Google', 'GOOGLE_NEEDS_LOGIN_ID');
+  }
+  const { sub } = await verifyGoogleIdToken(body && body.idToken);
+  const otherGoogle = () => httpError(409, '本账号已绑定另一个 Google 账号', 'GOOGLE_ALREADY_BOUND');
+  if (current.google_sub === sub) return rowToUser(current);
+  if (current.google_sub) throw otherGoogle();
+
+  let result;
+  try {
+    result = await query(
+      `UPDATE users SET google_sub = ?
+       WHERE id = ? AND status = 'active' AND google_sub IS NULL`,
+      [sub, userId]
+    );
+  } catch (err) {
+    if (isDuplicateKey(err)) {
+      throw httpError(409, '这个 Google 账号已绑定别的短号', 'GOOGLE_TAKEN');
+    }
+    throw err;
+  }
+  if (result.affectedRows === 0) {
+    // A second bind on this account landed first — same Google is fine, another is not.
+    const fresh = await requireActiveUser(userId);
+    if (fresh.google_sub !== sub) throw otherGoogle();
+  }
+  return getMe(userId);
 }
 
 async function getMe(userId) {
@@ -366,7 +443,7 @@ async function patchMe(userId, body) {
 }
 
 /**
- * Soft delete a **short-id** account and release the id immediately.
+ * Soft delete a **short-id** account and release the id and the Google binding immediately.
  * The row, posts, and the rest are physically removed on the next idle sweep
  * (login_id is already NULL). Silent rows are not deleted here — purgeIdleSilentAccounts does that.
  */
@@ -378,7 +455,7 @@ async function deleteMe(userId) {
   await query(
     `UPDATE users
      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,
-         login_id = NULL, password_hash = NULL,
+         login_id = NULL, password_hash = NULL, google_sub = NULL, regular_login_id = NULL,
          nick_name = NULL, flag_id = NULL, gender = NULL, avatar_id = NULL
      WHERE id = ? AND status = 'active' AND login_id IS NOT NULL`,
     [userId]
@@ -478,11 +555,14 @@ async function purgeIdleSilentAccounts() {
 
 module.exports = {
   rowToUser,
+  honorStateOf,
   authAnonymous,
   pickLoginIdCandidates,
   registerLoginId,
   grantLionLoginId,
   loginWithLoginId,
+  loginWithGoogle,
+  bindGoogle,
   getMe,
   patchMe,
   deleteMe,

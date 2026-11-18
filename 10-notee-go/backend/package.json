@@ -16,6 +16,8 @@
     "test:pour": "node scripts/assert-pour-payload.js",
     "test:login-id": "node scripts/assert-login-id.js",
     "smoke:login-id": "node scripts/smoke-login-id.js",
+    "test:honor-rename": "node scripts/assert-honor-rename.js",
+    "smoke:honor-rename": "node scripts/smoke-honor-rename.js",
     "grant:lion": "node scripts/grant-lion-login-id.js",
     "grant:party": "node scripts/grant-party-pass.js",
     "test:party-pass": "node scripts/assert-party-pass.js",

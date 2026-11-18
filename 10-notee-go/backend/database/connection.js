@@ -54,10 +54,16 @@ async function transaction(callback) {
   }
 }
 
+/** A UNIQUE key refused the write: someone else holds that id. */
+function isDuplicateKey(err) {
+  return Boolean(err && (err.code === 'ER_DUP_ENTRY' || err.errno === 1062));
+}
+
 module.exports = {
   pool,
   dbConfig,
   testConnection,
   query,
   transaction,
+  isDuplicateKey,
 };

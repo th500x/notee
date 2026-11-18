@@ -6,12 +6,15 @@
 const assert = require('assert');
 const {
   REGULAR_FIRST_CHARSET,
-  VIP_FIRST_CHARSET,
+  HONOR_FIRST_CHARSET,
   PREFIX_CAPACITY,
   capacityOfPrefix,
   currentPrefixFromOccupancy,
   randomLoginIdBatch,
+  isRegularLoginId,
+  isHonorLoginId,
   assertRegularLoginId,
+  assertHonorLoginId,
   assertLionLoginId,
 } = require('../lib/loginId');
 const {
@@ -42,14 +45,20 @@ assert.throws(() => assertRegularLoginId('0000'), (err) => err.code === 'BAD_LOG
 assert.strictEqual(assertLionLoginId('aaaa'), 'AAAA');
 assert.throws(() => assertLionLoginId('AB12'), (err) => err.code === 'NOT_LION_LOGIN_ID');
 
+assert.strictEqual(assertHonorLoginId(' 0ab1 '), '0AB1');
+assert.throws(() => assertHonorLoginId('AB12'), (err) => err.code === 'BAD_LOGIN_ID');
+assert.throws(() => assertHonorLoginId('0000'), (err) => err.code === 'RESERVED_LOGIN_ID');
+assert.ok(isRegularLoginId('AB12') && !isRegularLoginId('AAAA') && !isRegularLoginId('0AB1'));
+assert.ok(isHonorLoginId('0AB1') && !isHonorLoginId('0000') && !isHonorLoginId('AB12'));
+
 assert.strictEqual(currentPrefixFromOccupancy(REGULAR_FIRST_CHARSET, {}), 'A');
-assert.strictEqual(currentPrefixFromOccupancy(VIP_FIRST_CHARSET, {}), '0');
+assert.strictEqual(currentPrefixFromOccupancy(HONOR_FIRST_CHARSET, {}), '0');
 
 const aFull = { A: capacityOfPrefix('A') };
 assert.strictEqual(currentPrefixFromOccupancy(REGULAR_FIRST_CHARSET, aFull), 'B');
 
 const zeroFull = { 0: capacityOfPrefix('0') };
-assert.strictEqual(currentPrefixFromOccupancy(VIP_FIRST_CHARSET, zeroFull), '1');
+assert.strictEqual(currentPrefixFromOccupancy(HONOR_FIRST_CHARSET, zeroFull), '1');
 
 const laterTaken = { Z: 12, K: 3 };
 assert.strictEqual(

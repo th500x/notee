@@ -28,6 +28,11 @@ function isPass(code) {
   return code === '99' || code === '499' || code === 'ultra';
 }
 
+/** The one-time honor rename comes with 499 and Ultra, never with 99. */
+function hasHonorRename(code) {
+  return code === '499' || code === 'ultra';
+}
+
 function productIdFor(tier) {
   if (tier === '99') return PRODUCT_99;
   if (tier === '499') return PRODUCT_499;
@@ -76,6 +81,7 @@ module.exports = {
   PRODUCTS,
   tierCode,
   isPass,
+  hasHonorRename,
   productIdFor,
   effectiveTier,
   upgradeAdjustment,

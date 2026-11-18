@@ -17,6 +17,7 @@ const {
 } = require('../lib/partyPass');
 const { verifyProduct } = require('../lib/playPurchase');
 const { rowToUser, findUserById } = require('./userService');
+const { revokeLapsedHonor } = require('./honorLoginIdService');
 
 function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token), 'utf8').digest('hex');
@@ -62,6 +63,7 @@ async function recompute(conn, userId) {
      WHERE id = ?`,
     [stored, marks, adjustment.open ? 1 : 0, userId]
   );
+  await revokeLapsedHonor(conn, userId, tier);
   return tier;
 }
 
