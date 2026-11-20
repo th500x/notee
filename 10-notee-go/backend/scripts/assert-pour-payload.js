@@ -51,6 +51,11 @@ throwsCode(() => assertPourPayload({ ...ok, tableName: 'TOOLONGNAMEZ' }), 'BAD_P
 throwsCode(() => assertPourPayload({ ...ok, people: 0 }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, people: 13, names: Array(13).fill('GUESTX3') }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, kinds: [] }), 'BAD_POUR');
+assert.strictEqual(
+  assertPourPayload({ ...ok, bottleCount: 0, consumedMl: 0, kinds: [] }).bottleCount,
+  0
+);
+throwsCode(() => assertPourPayload({ ...ok, bottleCount: -1 }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, kinds: ['gin'] }), 'BAD_POUR');
 throwsCode(() => assertPourPayload({ ...ok, kinds: ['sake'] }), 'BAD_POUR');
 throwsCode(

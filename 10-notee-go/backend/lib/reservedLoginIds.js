@@ -2,7 +2,9 @@
  * Login ids never handed out automatically, in either pool. Uppercase, 4 chars.
  *
  * Two buckets:
- *   - blocked: system / brand / slurs — never grant, even by operator
+ *   - blocked: system / brand / slurs — not auto-issued, not self-registered.
+ *     TEST is the Play review account, written into the user table on 2026-11-20.
+ *     It stays in this set so the pool never offers it.
  *   - lion: quadrupled 0000–9999 and AAAA–ZZZZ — event / admin grant only
  *
  * See notee-go/docs/00-1-Account.md §3.1.

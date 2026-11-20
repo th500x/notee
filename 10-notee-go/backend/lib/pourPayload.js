@@ -33,7 +33,6 @@ const POUR_KEYS = new Set([
 const PLACE_BUDGET = 40;
 const PEOPLE_MIN = 1;
 const PEOPLE_MAX = 12;
-const BOTTLE_MIN = 1;
 const BOTTLE_MAX = 36;
 /** New posts. Stored rows with more kinds still render on the client. */
 const KINDS_MAX = 3;
@@ -41,10 +40,10 @@ const ML_MAX = 2000;
 const DURATION_MIN_SEC = 30 * 60;
 const DURATION_MAX_SEC = 6 * 60 * 60;
 /** TEST-ONLY. Pair with App PourRules.TEST_SHORT_PUBLISH_GAP. Set false after QA. */
-const POUR_TEST_SHORT_PUBLISH_GAP = true;
+const POUR_TEST_SHORT_PUBLISH_GAP = false;
 const TEST_DURATION_MIN_SEC = 5 * 60;
 /** TEST-ONLY. Pair with App PourRules.TEST_EDIT_POUR_STATS. Bottle/ml, stamp, place — no count cap. Set false after QA. */
-const POUR_TEST_EDIT_STATS = true;
+const POUR_TEST_EDIT_STATS = false;
 
 function durationMinSec() {
   return POUR_TEST_SHORT_PUBLISH_GAP ? TEST_DURATION_MIN_SEC : DURATION_MIN_SEC;
@@ -100,8 +99,9 @@ function assertNames(raw, people) {
   });
 }
 
-function assertKinds(raw) {
+function assertKinds(raw, allowEmpty) {
   if (!Array.isArray(raw) || raw.length === 0) {
+    if (allowEmpty) return [];
     throw httpError(400, '品类无效', 'BAD_POUR');
   }
   const kinds = [];
@@ -155,15 +155,16 @@ function assertPourPayload(raw) {
     POUR_TEST_SHORT_PUBLISH_GAP ? '时长须在 5 分钟–6 小时' : '时长须在 30 分钟–6 小时'
   );
   const place = assertWeightedText(raw.place, PLACE_BUDGET, { allowEmpty: false });
+  // A sitting can sync with nothing drunk. The app still requires one opened bottle to start.
   const bottleCount = assertInt(
     raw.bottleCount,
-    BOTTLE_MIN,
+    0,
     BOTTLE_MAX,
     'BAD_POUR',
     '瓶数无效'
   );
   const consumedMl = assertInt(raw.consumedMl, 0, CONSUMED_MAX, 'BAD_POUR', '消耗 ml 无效');
-  const kinds = assertKinds(raw.kinds);
+  const kinds = assertKinds(raw.kinds, bottleCount === 0);
 
   return {
     tableName,
