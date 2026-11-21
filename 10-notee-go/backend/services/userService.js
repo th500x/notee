@@ -456,6 +456,7 @@ async function deleteMe(userId) {
     `UPDATE users
      SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, device_key_hash = NULL,
          login_id = NULL, password_hash = NULL, google_sub = NULL, regular_login_id = NULL,
+         honor_batch_1 = NULL, honor_batch_2 = NULL,
          nick_name = NULL, flag_id = NULL, gender = NULL, avatar_id = NULL
      WHERE id = ? AND status = 'active' AND login_id IS NOT NULL`,
     [userId]

@@ -78,6 +78,22 @@ function testTicket() {
   assert.strictEqual(code(() => openTicket(null, { userId: 'u1', secret, nowMs })), 'HONOR_TICKET_INVALID');
 }
 
+function testStoredOffer() {
+  const { encodeOffer, decodeOffer, secondOfferFromTicket } = require('../lib/honorRename');
+  assert.strictEqual(decodeOffer(null), null);
+  assert.strictEqual(decodeOffer(''), null);
+  assert.deepStrictEqual(decodeOffer('0AB1,0CD2'), ['0AB1', '0CD2']);
+  assert.strictEqual(encodeOffer(['0AB1']), '0AB1');
+  assert.strictEqual(code(() => decodeOffer('AB12')), 'HONOR_OFFER_BROKEN');
+  assert.strictEqual(code(() => decodeOffer('0AB1,0AB1')), 'HONOR_OFFER_BROKEN');
+  assert.strictEqual(code(() => decodeOffer('0000')), 'HONOR_OFFER_BROKEN');
+  assert.deepStrictEqual(
+    secondOfferFromTicket(['0AB1'], ['0AB1', '0CD2']),
+    ['0CD2']
+  );
+  assert.strictEqual(secondOfferFromTicket(['0AB1'], ['0AB1']), null);
+}
+
 function testGoogleToken() {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const audience = 'web-client.apps.googleusercontent.com';
@@ -128,5 +144,6 @@ function testGoogleToken() {
 
 testState();
 testTicket();
+testStoredOffer();
 testGoogleToken();
 console.log('honor rename ok');

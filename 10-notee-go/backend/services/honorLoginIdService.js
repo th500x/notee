@@ -10,7 +10,14 @@ const { getSecret } = require('../middleware/auth');
 const { httpError } = require('../lib/httpError');
 const { assertHonorLoginId, isHonorLoginId } = require('../lib/loginId');
 const { hasHonorRename } = require('../lib/partyPass');
-const { TICKET_ROUNDS, sealTicket, openTicket } = require('../lib/honorRename');
+const {
+  TICKET_ROUNDS,
+  sealTicket,
+  openTicket,
+  decodeOffer,
+  encodeOffer,
+  secondOfferFromTicket,
+} = require('../lib/honorRename');
 const {
   honorStateOf,
   requireActiveUser,
@@ -30,26 +37,88 @@ function assertRenameReady(row) {
 }
 
 /**
- * First call without a ticket; the refresh sends the first ticket back and gets ids that
- * exclude the first batch. The returned ticket covers both batches.
- * @returns {Promise<{ loginIds: string[], partial: boolean, prefix: string|null, ticket: string }>}
+ * The two batches stay on this account. No ticket returns what is already stored and draws
+ * the first nine only when nothing is stored. A ticket draws the second batch once.
+ * Later calls, with or without a ticket, return those same ids.
+ * @returns {Promise<{ loginIds: string[], batch1: string[], batch2: string[], round: number, partial: boolean, prefix: string|null, ticket: string }>}
  */
 async function pickHonorCandidates(userId, { ticket } = {}) {
-  assertRenameReady(await requireActiveUser(userId));
   const secret = getSecret();
-  const previous = ticket ? openTicket(ticket, { userId, secret }) : null;
-  if (previous && previous.round >= TICKET_ROUNDS) {
-    throw httpError(409, '只能换一批', 'HONOR_REFRESH_USED');
-  }
-  const batch = await pickLoginIdCandidates({
-    pool: 'honor',
-    exclude: previous ? previous.loginIds : [],
+  return transaction(async (conn) => {
+    const [rows] = await conn.query(
+      `SELECT login_id, party_pass, google_sub, honor_renamed_at, honor_batch_1, honor_batch_2, status
+       FROM users WHERE id = ? FOR UPDATE`,
+      [userId]
+    );
+    const row = rows[0];
+    if (!row || row.status === 'deleted') {
+      throw httpError(401, '账号已删除或不可用', 'USER_GONE');
+    }
+    if (row.status === 'banned') throw httpError(403, '账号已封禁', 'USER_BANNED');
+    if (row.status !== 'active') throw httpError(401, '账号已删除或不可用', 'USER_GONE');
+    assertRenameReady(row);
+
+    let batch1 = decodeOffer(row.honor_batch_1);
+    let batch2 = decodeOffer(row.honor_batch_2);
+    const previous = ticket ? openTicket(ticket, { userId, secret }) : null;
+    let dirty = false;
+
+    if (!batch1) {
+      if (previous && previous.round === 1) {
+        batch1 = decodeOffer(previous.loginIds.join(','));
+      } else if (previous) {
+        throw httpError(400, '这批号已过期，请重新打开', 'HONOR_TICKET_INVALID');
+      } else {
+        const drawn = await pickLoginIdCandidates({ pool: 'honor' });
+        batch1 = drawn.loginIds;
+      }
+      dirty = true;
+    }
+
+    if (previous && !batch2) {
+      const carried = previous.round >= TICKET_ROUNDS
+        ? secondOfferFromTicket(batch1, previous.loginIds)
+        : null;
+      if (carried) {
+        batch2 = carried;
+      } else if (previous.round >= TICKET_ROUNDS) {
+        throw httpError(409, '只能换一批', 'HONOR_REFRESH_USED');
+      } else {
+        const drawn = await pickLoginIdCandidates({ pool: 'honor', exclude: batch1 });
+        batch2 = drawn.loginIds;
+      }
+      dirty = true;
+    }
+
+    if (dirty) {
+      await conn.query(
+        `UPDATE users
+         SET honor_batch_1 = ?, honor_batch_2 = ?, last_seen_at = UTC_TIMESTAMP()
+         WHERE id = ?`,
+        [encodeOffer(batch1), batch2 ? encodeOffer(batch2) : null, userId]
+      );
+    } else {
+      await conn.query(
+        `UPDATE users SET last_seen_at = UTC_TIMESTAMP() WHERE id = ? AND status = 'active'`,
+        [userId]
+      );
+    }
+
+    const shown = previous && batch2 ? batch2 : batch1;
+    const offered = batch2 ? [...batch1, ...batch2] : batch1;
+    return {
+      loginIds: shown,
+      batch1,
+      batch2: batch2 || [],
+      round: batch2 ? TICKET_ROUNDS : 1,
+      partial: shown.length < 9,
+      prefix: batch1[0] ? batch1[0][0] : null,
+      ticket: sealTicket(
+        { userId, loginIds: offered, round: batch2 ? TICKET_ROUNDS : 1 },
+        secret
+      ),
+    };
   });
-  const offered = previous ? [...previous.loginIds, ...batch.loginIds] : batch.loginIds;
-  return {
-    ...batch,
-    ticket: sealTicket({ userId, loginIds: offered, round: previous ? previous.round + 1 : 1 }, secret),
-  };
 }
 
 /**
@@ -66,7 +135,7 @@ async function renameToHonorLoginId(userId, body) {
   await transaction(async (conn) => {
     // Locked like the Party Pass recompute, so a refund cannot slip between check and write.
     const [rows] = await conn.query(
-      `SELECT login_id, party_pass, google_sub, honor_renamed_at
+      `SELECT login_id, party_pass, google_sub, honor_renamed_at, honor_batch_1, honor_batch_2
        FROM users WHERE id = ? AND status = 'active' FOR UPDATE`,
       [userId]
     );
@@ -74,11 +143,19 @@ async function renameToHonorLoginId(userId, body) {
     if (!row) throw httpError(401, '账号已删除或不可用', 'USER_GONE');
     if (row.login_id === loginId) return;
     assertRenameReady(row);
+    const stored = [
+      ...(decodeOffer(row.honor_batch_1) || []),
+      ...(decodeOffer(row.honor_batch_2) || []),
+    ];
+    if (!stored.includes(loginId)) {
+      throw httpError(400, '只能从给出的号里挑', 'HONOR_TICKET_INVALID');
+    }
     try {
       // MySQL applies SET left to right: copy the letter id before it is overwritten.
       await conn.query(
         `UPDATE users
-         SET regular_login_id = login_id, login_id = ?, honor_renamed_at = UTC_TIMESTAMP()
+         SET regular_login_id = login_id, login_id = ?, honor_renamed_at = UTC_TIMESTAMP(),
+             honor_batch_1 = NULL, honor_batch_2 = NULL
          WHERE id = ?`,
         [loginId, userId]
       );

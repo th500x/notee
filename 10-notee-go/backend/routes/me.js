@@ -53,7 +53,7 @@ router.post('/google', requireAuth, authWriteLimiter, async (req, res) => {
   }
 });
 
-/** GET /me/honor-login-id/candidates[?ticket=…] — the first batch's ticket draws the one refresh. */
+/** GET /me/honor-login-id/candidates[?ticket=…] — no ticket returns the stored batches. */
 router.get('/honor-login-id/candidates', requireAuth, loginIdCandidateLimiter, async (req, res) => {
   try {
     const ticket = typeof req.query.ticket === 'string' && req.query.ticket ? req.query.ticket : null;

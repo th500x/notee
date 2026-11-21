@@ -37,6 +37,7 @@ const MIGRATION_FILES = [
   '022-party-pass-tier.sql',
   '023-game-results.sql',
   '024-users-google-honor.sql',
+  '025-users-honor-batches.sql',
 ];
 
 const DEFAULT_DB_NAME = '10_notee_go';

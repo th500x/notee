@@ -82,11 +82,29 @@ async function main() {
   const first = await pickHonorCandidates(a.id);
   checks.firstBatch =
     first.loginIds.length === 9 &&
+    first.batch1.join() === first.loginIds.join() &&
+    first.batch2.length === 0 &&
     first.loginIds.every((id) => HONOR.test(id) && id[0] === first.loginIds[0][0]) &&
     typeof first.ticket === 'string';
+  const reopen = await pickHonorCandidates(a.id);
+  checks.reopenSame =
+    reopen.batch1.join() === first.batch1.join() &&
+    reopen.batch2.length === 0 &&
+    reopen.loginIds.join() === first.loginIds.join();
   const second = await pickHonorCandidates(a.id, { ticket: first.ticket });
-  checks.refreshExcludes = second.loginIds.every((id) => !first.loginIds.includes(id));
-  checks.secondRefresh = await codeOf(() => pickHonorCandidates(a.id, { ticket: second.ticket }));
+  checks.refreshExcludes =
+    second.loginIds.every((id) => !first.loginIds.includes(id)) &&
+    second.batch1.join() === first.batch1.join() &&
+    second.batch2.join() === second.loginIds.join();
+  const reopenBoth = await pickHonorCandidates(a.id);
+  checks.reopenKeepsBoth =
+    reopenBoth.batch1.join() === first.batch1.join() &&
+    reopenBoth.batch2.join() === second.batch2.join();
+  const third = await pickHonorCandidates(a.id, { ticket: second.ticket });
+  checks.noThirdDraw =
+    third.batch1.join() === first.batch1.join() &&
+    third.batch2.join() === second.batch2.join() &&
+    third.loginIds.join() === second.loginIds.join();
 
   const strayPrefix = first.loginIds[0][0] === '9' ? '8' : '9';
   checks.selfMadeId = await codeOf(() =>
@@ -101,6 +119,7 @@ async function main() {
   await grantStaff(b.loginId, '499');
   await fakeGoogle(b.id);
   const contested = first.loginIds[0];
+  await query(`UPDATE users SET honor_batch_1 = ? WHERE id = ?`, [contested, b.id]);
   const ticketB = sealTicket({ userId: b.id, loginIds: [contested], round: 1 }, getSecret());
   const race = await Promise.all([
     codeOf(() => renameToHonorLoginId(a.id, { loginId: contested, ticket: second.ticket })),
@@ -167,8 +186,10 @@ async function main() {
     loginUnconfigured: 'GOOGLE_AUTH_UNAVAILABLE',
     stateReady: true,
     firstBatch: true,
+    reopenSame: true,
     refreshExcludes: true,
-    secondRefresh: 'HONOR_REFRESH_USED',
+    reopenKeepsBoth: true,
+    noThirdDraw: true,
     selfMadeId: 'HONOR_TICKET_INVALID',
     otherAccountsTicket: 'HONOR_TICKET_INVALID',
     raceOneWins: true,
