@@ -31,6 +31,8 @@ const MESSAGES = {
       '当前 App 内置浏览器无法完成下载/分享。请先用系统浏览器打开本页，再点「下载到手机」或「分享到应用」。',
     actionsHint:
       '「下载到手机」会一次性下载全部图片。「分享到应用」：先准备文件，再点分享；微信等每次约 9 张，超过会分多批，每批发完后再点「继续分享」。微信 / LINE 内请先用系统浏览器打开。',
+    actionsHintCurrent:
+      '「下载到手机」和「分享到应用」只处理当前这一库。「分享到应用」：先准备文件，再点分享；微信等每次约 9 张，超过会分多批，每批发完后再点「继续分享」。微信 / LINE 内请先用系统浏览器打开。',
     savePreparing: '准备中…',
     prepareProgress: '正在准备 {cur}/{total}…',
     prepareReadyShare: '准备完成，请点「分享到应用」',
@@ -47,6 +49,7 @@ const MESSAGES = {
     saveProgress: '正在下载 {cur}/{total}…',
     saveDoneShare: '已打开系统分享',
     saveDoneSequential: '已开始下载全部图片',
+    saveDoneCurrentAlbum: '已开始下载当前图库的图片',
     saveFailed: '操作失败，请尝试单张下载或长按图片保存',
     downloadOne: '下载',
     downloadFailed: '下载失败，请长按图片保存',
@@ -109,6 +112,8 @@ const MESSAGES = {
       'This in-app browser cannot download or share. Open this page in your system browser, then tap “Download to phone” or “Share to app”.',
     actionsHint:
       '“Download to phone” downloads all photos at once. “Share to app”: prepare, then share. Apps like WeChat allow about 9 photos per share — larger sets are split into batches; tap Continue after each batch. In WeChat / LINE, open in the system browser first.',
+    actionsHintCurrent:
+      '“Download to phone” and “Share to app” use only the gallery you are viewing. “Share to app”: prepare, then share. Apps like WeChat allow about 9 photos per share — larger sets are split into batches; tap Continue after each batch. In WeChat / LINE, open in the system browser first.',
     savePreparing: 'Preparing…',
     prepareProgress: 'Preparing {cur}/{total}…',
     prepareReadyShare: 'Ready — tap “Share to app”',
@@ -125,6 +130,7 @@ const MESSAGES = {
     saveProgress: 'Downloading {cur}/{total}…',
     saveDoneShare: 'Share sheet opened',
     saveDoneSequential: 'Started downloading all photos',
+    saveDoneCurrentAlbum: 'Started downloading this gallery',
     saveFailed: 'Something went wrong. Try downloading one photo or long-press to save.',
     downloadOne: 'Download',
     downloadFailed: 'Download failed. Long-press the photo to save.',
@@ -187,6 +193,8 @@ const MESSAGES = {
       'เบราว์เซอร์ในแอปนี้ดาวน์โหลด/แชร์ไม่ได้ กรุณาเปิดหน้านี้ในเบราว์เซอร์ของเครื่องก่อน แล้วกด「ดาวน์โหลดลงมือถือ」หรือ「แชร์ไปแอป」',
     actionsHint:
       '「ดาวน์โหลดลงมือถือ」ดาวน์โหลดรูปทั้งหมด 「แชร์ไปแอป」: เตรียมแล้วแชร์ แอปอย่าง WeChat แชร์ได้ราว 9 รูปต่อครั้ง — เกินจะแบ่งชุด กด「แชร์ต่อ」หลังแต่ละชุด หากเปิดใน WeChat / LINE ให้เปิดด้วยเบราว์เซอร์ของเครื่องก่อน',
+    actionsHintCurrent:
+      '「ดาวน์โหลดลงมือถือ」และ「แชร์ไปแอป」ใช้เฉพาะคลังที่กำลังดู 「แชร์ไปแอป」: เตรียมแล้วแชร์ แอปอย่าง WeChat แชร์ได้ราว 9 รูปต่อครั้ง — เกินจะแบ่งชุด กด「แชร์ต่อ」หลังแต่ละชุด หากเปิดใน WeChat / LINE ให้เปิดด้วยเบราว์เซอร์ของเครื่องก่อน',
     savePreparing: 'กำลังเตรียม…',
     prepareProgress: 'กำลังเตรียม {cur}/{total}…',
     prepareReadyShare: 'พร้อมแล้ว — กด「แชร์ไปแอป」',
@@ -203,6 +211,7 @@ const MESSAGES = {
     saveProgress: 'กำลังดาวน์โหลด {cur}/{total}…',
     saveDoneShare: 'เปิดแผงแชร์แล้ว',
     saveDoneSequential: 'เริ่มดาวน์โหลดรูปทั้งหมดแล้ว',
+    saveDoneCurrentAlbum: 'เริ่มดาวน์โหลดรูปในคลังนี้แล้ว',
     saveFailed: 'ไม่สำเร็จ ลองดาวน์โหลดทีละรูป หรือกดค้างที่รูป',
     downloadOne: 'ดาวน์โหลด',
     downloadFailed: 'ดาวน์โหลดไม่สำเร็จ กรุณากดค้างที่รูปเพื่อบันทึก',

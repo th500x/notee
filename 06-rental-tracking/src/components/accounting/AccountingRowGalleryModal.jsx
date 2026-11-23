@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useLayoutEffect, useEffect } from 'react';
+import { useRef, useState, useCallback, useLayoutEffect, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import PhotoViewer from '../PhotoViewer';
 import { uploadService } from '../../services/uploadService';
@@ -22,6 +22,14 @@ import {
 import { config } from '../../config';
 import { buildOssImageUrl } from '../../utils/ossImageUrl';
 import { resolveGalleryUploadFileName } from '../../utils/galleryUploadFileName';
+import {
+  appendUploadedPhotos,
+  beginNewGalleryAlbum,
+  galleryAlbumLabel,
+  pruneGalleryAlbums,
+  removeGalleryPhotos,
+  resolveGalleryAlbums
+} from '../../utils/galleryAlbums.js';
 
 /** 与后端 sanitizeRoomFolderName 口径一致（用于判断是否需迁移） */
 function roomFolderSlug(room) {
@@ -159,6 +167,16 @@ export function AccountingRowGalleryModal({
   const photos = row?.photos || [];
   const photoIdsKey = photos.map((p) => p?.id || '').join('|');
   const canShareGallery = photos.length > 0;
+  const [activeAlbumId, setActiveAlbumId] = useState('');
+  const albumView = useMemo(
+    () => resolveGalleryAlbums(row?.galleryAlbums, photos),
+    [row?.galleryAlbums, photos]
+  );
+  const activeAlbum =
+    albumView.albums.find((album) => album.id === activeAlbumId) ||
+    albumView.albums[albumView.albums.length - 1] ||
+    albumView.albums[0];
+  const visiblePhotos = activeAlbum?.photos || [];
   const roomLabel = row?.room?.trim() || '（未填房号）';
   const roomValue = row?.room?.trim() || '';
   const panelStyles = useGalleryPanelStyle(isOpen);
@@ -171,6 +189,16 @@ export function AccountingRowGalleryModal({
     },
     [row?.id, onUpdateRow]
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveAlbumId('');
+    setViewerIndex(null);
+  }, [isOpen, row?.id]);
+
+  useEffect(() => {
+    setViewerIndex(null);
+  }, [activeAlbum?.id]);
 
   /** 上传期间每秒走一次，保证「已用时间/速度」在等服务器时也在动 */
   useEffect(() => {
@@ -271,6 +299,24 @@ export function AccountingRowGalleryModal({
     [syncGalleryOssKeep]
   );
 
+  const applyUploadedPhotos = (newPhotos) => {
+    const appended = appendUploadedPhotos(
+      row?.galleryAlbums,
+      photos,
+      activeAlbum?.id || '',
+      newPhotos
+    );
+    const patch = { photos: appended.photos, galleryAlbums: appended.albums };
+    if (!row.galleryShareToken && appended.photos.length > 0) {
+      patch.galleryShareToken = newGalleryShareToken();
+    }
+    patchRow(patch);
+    if (appended.failed) {
+      alert('图片已上传，但这批没有拍摄日期，也没有上传日期，图库还不能自动命名。');
+    }
+    return appended.photos;
+  };
+
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -303,7 +349,6 @@ export function AccountingRowGalleryModal({
       bytesTotal: files.reduce((sum, f) => sum + (f.size || 0), 0),
       startedAt
     });
-    let nextPhotos = photos;
     try {
       const fileNames = [];
       for (let i = 0; i < files.length; i += 1) {
@@ -326,12 +371,7 @@ export function AccountingRowGalleryModal({
       for (let i = 0; i < results.length; i += 1) {
         newPhotos.push(await enrichUploadedPhotoFromFile(results[i].photo, files[i]));
       }
-      nextPhotos = [...photos, ...newPhotos];
-      const patch = { photos: nextPhotos };
-      if (!row.galleryShareToken && nextPhotos.length > 0) {
-        patch.galleryShareToken = newGalleryShareToken();
-      }
-      patchRow(patch);
+      applyUploadedPhotos(newPhotos);
     } catch (err) {
       console.error(err);
       const partial = Array.isArray(err?.partialResults) ? err.partialResults : [];
@@ -341,12 +381,7 @@ export function AccountingRowGalleryModal({
         for (let i = 0; i < partial.length; i += 1) {
           newPhotos.push(await enrichUploadedPhotoFromFile(partial[i].photo, partialFiles[i]));
         }
-        nextPhotos = [...photos, ...newPhotos];
-        const patch = { photos: nextPhotos };
-        if (!row.galleryShareToken && nextPhotos.length > 0) {
-          patch.galleryShareToken = newGalleryShareToken();
-        }
-        patchRow(patch);
+        applyUploadedPhotos(newPhotos);
       }
       const keepHint =
         partial.length > 0 ? `已保留成功上传的 ${partial.length} 张。` : '';
@@ -361,29 +396,56 @@ export function AccountingRowGalleryModal({
     if (!confirm('确定删除这张照片？删除后请点下方「保存到服务器」。')) return;
     try {
       await uploadService.deletePhoto(photoId);
-      patchRow({ photos: photos.filter((p) => p.id !== photoId) });
+      const removed = removeGalleryPhotos(row?.galleryAlbums, photos, [photoId], {
+        keepDrafts: true
+      });
+      patchRow({ photos: removed.photos, galleryAlbums: removed.albums });
+      if (activeAlbum?.id && !removed.albums.some((album) => album.id === activeAlbum.id)) {
+        setActiveAlbumId('');
+      }
     } catch (err) {
       alert(`删除失败：${err.message || '未知错误'}`);
     }
   };
 
   const handleDeleteAllPhotos = async () => {
-    if (!photos.length || uploading) return;
-    if (
-      !confirm(
-        `确定删除全部 ${photos.length} 张图片？\n\n云端会立即删除；删完后请点「保存到服务器」同步账目单。`
-      )
-    ) {
-      return;
-    }
+    if (!visiblePhotos.length || uploading) return;
+    const deleteMessage = albumView.multi
+      ? `确定删除当前图库「${galleryAlbumLabel(activeAlbum)}」的 ${visiblePhotos.length} 张图片？\n\n其他图库不动。云端会立即删除；删完后请点「保存到服务器」同步账目单。`
+      : `确定删除全部 ${visiblePhotos.length} 张图片？\n\n云端会立即删除；删完后请点「保存到服务器」同步账目单。`;
+    if (!confirm(deleteMessage)) return;
     try {
-      await uploadService.deletePhotos(photos.map((p) => p.id));
-      patchRow({ photos: [] });
-      setShareHint('已全部删除，请保存到服务器');
+      await uploadService.deletePhotos(visiblePhotos.map((photo) => photo.id));
+      const removed = removeGalleryPhotos(
+        row?.galleryAlbums,
+        photos,
+        visiblePhotos.map((photo) => photo.id),
+        { keepDrafts: true }
+      );
+      patchRow({ photos: removed.photos, galleryAlbums: removed.albums });
+      if (activeAlbum?.id && !removed.albums.some((album) => album.id === activeAlbum.id)) {
+        setActiveAlbumId('');
+      }
+      setShareHint(albumView.multi ? '已删除当前图库，请保存到服务器' : '已全部删除，请保存到服务器');
       setTimeout(() => setShareHint(''), 4000);
     } catch (err) {
       alert(`删除失败：${err.message || '未知错误'}`);
     }
+  };
+
+  const handleNewAlbum = () => {
+    if (uploading || relocating) return;
+    const created = beginNewGalleryAlbum(row?.galleryAlbums, photos, activeAlbum?.id || '');
+    if (created.error === 'empty-current') {
+      alert('请先往当前图库上传图片，再新建下一个。');
+      return;
+    }
+    if (created.error === 'no-date') {
+      alert('这批照片没有拍摄日期，也没有上传日期，无法自动命名。');
+      return;
+    }
+    patchRow({ photos: created.photos, galleryAlbums: created.albums });
+    setActiveAlbumId(created.activeAlbumId);
   };
 
   const handleShare = async () => {
@@ -454,9 +516,18 @@ export function AccountingRowGalleryModal({
       }
       patchRow({
         photos: savedPhotos,
+        galleryAlbums: savedRow?.galleryAlbums || [],
         galleryShareToken: savedRow?.galleryShareToken || '',
         galleryListing: savedRow?.galleryListing || row?.galleryListing
       });
+      onClose();
+      return;
+    }
+
+    const prunedAlbums = pruneGalleryAlbums(row?.galleryAlbums, photos, { keepDrafts: false });
+    const currentAlbums = Array.isArray(row?.galleryAlbums) ? row.galleryAlbums : [];
+    if (JSON.stringify(prunedAlbums) !== JSON.stringify(currentAlbums)) {
+      patchRow({ galleryAlbums: prunedAlbums });
     }
 
     onClose();
@@ -542,17 +613,55 @@ export function AccountingRowGalleryModal({
                 重新生成链接
               </button>
             ) : null}
-            {photos.length > 0 ? (
+            {visiblePhotos.length > 0 ? (
               <button
                 type="button"
                 onClick={handleDeleteAllPhotos}
                 disabled={uploading}
                 className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
-                全部删除 OSS
+                {albumView.multi ? '删除当前图库' : '全部删除 OSS'}
               </button>
             ) : null}
           </div>
+
+          {photos.length > 0 ? (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleNewAlbum}
+                disabled={uploading || relocating || !activeAlbum?.photos?.length}
+                className="px-3 py-2 text-sm rounded border border-blue-600 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              >
+                新建图库
+              </button>
+              {activeAlbum?.draft ? (
+                <p className="text-[11px] text-gray-500">
+                  上传图片后会按拍摄日期命名。不上传就离开，这个新图库不会保留。
+                </p>
+              ) : null}
+              {albumView.multi ? (
+                <div className="flex flex-wrap gap-2" role="group" aria-label="图库">
+                  {albumView.albums.map((album) => {
+                    const selected = album.id === activeAlbum?.id;
+                    return (
+                      <button
+                        key={album.id || 'legacy'}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setActiveAlbumId(album.id)}
+                        className={`px-3 py-1.5 text-sm rounded ${
+                          selected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                      >
+                        {galleryAlbumLabel(album)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {uploading && uploadProgress ? (
             <div className="space-y-1.5">
@@ -600,13 +709,13 @@ export function AccountingRowGalleryModal({
             onChange={handleFileChange}
           />
 
-          {photos.length === 0 ? (
+          {visiblePhotos.length === 0 ? (
             <div className="py-6 text-center text-gray-500 border border-dashed border-gray-300 rounded-lg text-sm px-3">
-              暂无图片，点击「选择图片」上传到 OSS
+              {activeAlbum?.draft ? '新图库还没有图片，点击「继续上传」' : '暂无图片，点击「选择图片」上传到 OSS'}
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {photos.map((photo, index) => (
+              {visiblePhotos.map((photo, index) => (
                 <div
                   key={photo.id}
                   className="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50"
@@ -845,9 +954,9 @@ export function AccountingRowGalleryModal({
         </div>
       </div>
 
-      {viewerIndex !== null && photos.length > 0 ? (
+      {viewerIndex !== null && visiblePhotos.length > 0 ? (
         <PhotoViewer
-          photos={photos}
+          photos={visiblePhotos}
           initialIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
         />

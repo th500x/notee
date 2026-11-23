@@ -5,6 +5,10 @@
 import { evaluateArithmeticExpression } from './accountingExpression';
 import { normalizeGalleryListing, emptyGalleryListing } from './galleryListing';
 import { sanitizeIsoDateField } from './accountingDates';
+import {
+  normalizeGalleryAlbumId,
+  normalizeStoredGalleryAlbums
+} from './galleryAlbums.js';
 
 function normalizeGalleryPhoto(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -17,7 +21,8 @@ function normalizeGalleryPhoto(raw) {
     name: typeof raw.name === 'string' ? raw.name.slice(0, 255) : '',
     size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : undefined,
     uploadedAt: typeof raw.uploadedAt === 'string' ? raw.uploadedAt.slice(0, 50) : '',
-    capturedAt: typeof raw.capturedAt === 'string' ? raw.capturedAt.slice(0, 50) : ''
+    capturedAt: typeof raw.capturedAt === 'string' ? raw.capturedAt.slice(0, 50) : '',
+    albumId: normalizeGalleryAlbumId(raw.albumId)
   };
 }
 
@@ -142,6 +147,7 @@ export function normalizeAccountingSheet(raw) {
             payRent: payRentStr
           };
         }
+        const photos = normalizeGalleryPhotos(row.photos);
         return {
           id:
             typeof row.id === 'string' && row.id
@@ -159,7 +165,8 @@ export function normalizeAccountingSheet(raw) {
           price: typeof row.price === 'string' ? row.price.slice(0, 500) : '',
           deposit: typeof row.deposit === 'string' ? row.deposit.slice(0, 500) : '',
           months,
-          photos: normalizeGalleryPhotos(row.photos),
+          photos,
+          galleryAlbums: normalizeStoredGalleryAlbums(row.galleryAlbums, photos),
           galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
           galleryListing: normalizeGalleryListing(row.galleryListing)
         };
@@ -366,6 +373,7 @@ export function emptyRentRow(monthKeys) {
       [m1]: emptyRentMonthCells()
     },
     photos: [],
+    galleryAlbums: [],
     galleryShareToken: '',
     galleryListing: emptyGalleryListing()
   };

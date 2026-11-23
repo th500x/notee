@@ -93,7 +93,13 @@ const accountingGalleryPhotoSchema = Joi.object({
       'number.max': '照片大小不能超过10MB'
     }),
   uploadedAt: Joi.string().max(50).allow('').optional(),
-  capturedAt: Joi.string().max(50).allow('').optional()
+  capturedAt: Joi.string().max(50).allow('').optional(),
+  albumId: Joi.string().max(48).allow('').optional()
+});
+
+const accountingGalleryAlbumSchema = Joi.object({
+  id: Joi.string().max(48).required(),
+  name: Joi.string().max(20).allow('').default('')
 });
 
 const accountingGalleryListingSchema = Joi.object({
@@ -125,6 +131,7 @@ const accountingRentRowSchema = Joi.object({
   deposit: accountingExprString.default(''),
   months: Joi.object().pattern(/^\d{4}-\d{2}$/, accountingRentMonthSchema).default({}),
   photos: Joi.array().items(accountingGalleryPhotoSchema).max(500).default([]),
+  galleryAlbums: Joi.array().items(accountingGalleryAlbumSchema).max(50).default([]),
   galleryShareToken: Joi.string().max(80).allow('').default(''),
   galleryListing: accountingGalleryListingSchema.default({})
 });

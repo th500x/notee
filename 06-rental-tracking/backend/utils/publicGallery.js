@@ -18,7 +18,15 @@ function formatPublicPhotos(rentRow) {
     url: p.url,
     name: p.name || '',
     capturedAt: p.capturedAt || '',
-    uploadedAt: p.uploadedAt || ''
+    uploadedAt: p.uploadedAt || '',
+    albumId: p.albumId || ''
+  }));
+}
+
+function formatPublicAlbums(rentRow) {
+  return (rentRow.galleryAlbums || []).map((album) => ({
+    id: album.id,
+    name: album.name || ''
   }));
 }
 
@@ -41,6 +49,7 @@ async function findPublicGalleryByToken(token) {
       return {
         room: rentRow.room || '',
         photos: formatPublicPhotos(rentRow),
+        albums: formatPublicAlbums(rentRow),
         listing: rentRow.galleryListing || {}
       };
     }

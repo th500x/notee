@@ -84,6 +84,7 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       if (!cur) return false;
       return (
         JSON.stringify(cur.photos || []) !== JSON.stringify(base?.photos || []) ||
+        JSON.stringify(cur.galleryAlbums || []) !== JSON.stringify(base?.galleryAlbums || []) ||
         JSON.stringify(normalizeGalleryListing(cur.galleryListing)) !==
           JSON.stringify(normalizeGalleryListing(base?.galleryListing)) ||
         (cur.galleryShareToken || '') !== (base?.galleryShareToken || '')

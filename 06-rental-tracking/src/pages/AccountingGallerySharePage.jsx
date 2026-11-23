@@ -22,6 +22,7 @@ import {
   galleryShareHtmlLang
 } from '../utils/galleryShareI18n';
 import { buildOssImageUrl } from '../utils/ossImageUrl';
+import { galleryAlbumLabel, resolveGalleryAlbums } from '../utils/galleryAlbums.js';
 
 const GALLERY_LANG_OPTIONS = [
   { id: 'th', label: '泰文' },
@@ -42,6 +43,8 @@ export default function AccountingGallerySharePage({ token }) {
   const [errorRaw, setErrorRaw] = useState('');
   const [room, setRoom] = useState('');
   const [photos, setPhotos] = useState([]);
+  const [galleryAlbums, setGalleryAlbums] = useState([]);
+  const [activeAlbumId, setActiveAlbumId] = useState('');
   const [listing, setListing] = useState({});
   const [viewerIndex, setViewerIndex] = useState(null);
   const [saveProgress, setSaveProgress] = useState('');
@@ -76,6 +79,9 @@ export default function AccountingGallerySharePage({ token }) {
         if (cancelled) return;
         setRoom(data.room || '');
         setPhotos(Array.isArray(data.photos) ? data.photos : []);
+        setGalleryAlbums(Array.isArray(data.albums) ? data.albums : []);
+        setActiveAlbumId('');
+        setPreparedFiles(null);
         setListing(data.listing || {});
       } catch (err) {
         if (!cancelled) {
@@ -89,6 +95,15 @@ export default function AccountingGallerySharePage({ token }) {
       cancelled = true;
     };
   }, [token]);
+
+  const albumView = useMemo(
+    () => resolveGalleryAlbums(galleryAlbums, photos),
+    [galleryAlbums, photos]
+  );
+  const activeAlbum =
+    albumView.albums.find((album) => album.id === activeAlbumId) ||
+    albumView.albums[albumView.albums.length - 1];
+  const visiblePhotos = activeAlbum?.photos || [];
 
   const handleOpenInBrowser = useCallback(() => {
     setSaveProgress(t.openInBrowserBusy);
@@ -114,18 +129,18 @@ export default function AccountingGallerySharePage({ token }) {
 
   /** 一次性下载全部（与单张「下载」相同代理方式） */
   const handleDownloadAll = useCallback(async () => {
-    if (!photos.length || downloading || preparing || sharing) return;
+    if (!visiblePhotos.length || downloading || preparing || sharing) return;
     if (inApp.restricted) {
       handleOpenInBrowser();
       return;
     }
     setDownloading(true);
-    setSaveProgress(t.saveProgress.replace('{cur}', '0').replace('{total}', String(photos.length)));
+    setSaveProgress(t.saveProgress.replace('{cur}', '0').replace('{total}', String(visiblePhotos.length)));
     try {
-      await downloadAllViaProxyUrls(token, photos, room, (cur, total) => {
+      await downloadAllViaProxyUrls(token, visiblePhotos, room, (cur, total) => {
         setSaveProgress(t.saveProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
       });
-      setSaveProgress(t.saveDoneSequential);
+      setSaveProgress(albumView.multi ? t.saveDoneCurrentAlbum : t.saveDoneSequential);
       setTimeout(() => setSaveProgress(''), 4000);
     } catch (err) {
       setSaveProgress('');
@@ -133,7 +148,7 @@ export default function AccountingGallerySharePage({ token }) {
     } finally {
       setDownloading(false);
     }
-  }, [photos, downloading, preparing, sharing, room, token, t, inApp.restricted, handleOpenInBrowser]);
+  }, [visiblePhotos, albumView.multi, downloading, preparing, sharing, room, token, t, inApp.restricted, handleOpenInBrowser]);
 
   const waitForShareContinue = useCallback(
     (next, total) =>
@@ -162,7 +177,7 @@ export default function AccountingGallerySharePage({ token }) {
       return;
     }
 
-    if (!photos.length || preparing || downloading || sharing) return;
+    if (!visiblePhotos.length || preparing || downloading || sharing) return;
     if (inApp.restricted) {
       handleOpenInBrowser();
       return;
@@ -180,7 +195,7 @@ export default function AccountingGallerySharePage({ token }) {
       setPreparedFiles(null);
       setSaveProgress(t.savePreparing);
       try {
-        const files = await prepareGalleryPhotoFiles(token, photos, room, (cur, total) => {
+        const files = await prepareGalleryPhotoFiles(token, visiblePhotos, room, (cur, total) => {
           setSaveProgress(t.prepareProgress.replace('{cur}', String(cur)).replace('{total}', String(total)));
         });
         setPreparedFiles(files);
@@ -225,7 +240,7 @@ export default function AccountingGallerySharePage({ token }) {
       setSharing(false);
     }
   }, [
-    photos,
+    visiblePhotos,
     preparing,
     downloading,
     sharing,
@@ -237,6 +252,17 @@ export default function AccountingGallerySharePage({ token }) {
     handleOpenInBrowser,
     waitForShareContinue
   ]);
+
+  const handleSelectAlbum = (albumId) => {
+    if (downloading || preparing || sharing) return;
+    if (albumId === activeAlbum?.id) return;
+    setActiveAlbumId(albumId);
+    setPreparedFiles(null);
+    setShareContinue(null);
+    setViewerIndex(null);
+    setSaveProgress('');
+    continueShareResolverRef.current = null;
+  };
 
   const error = errorRaw ? translateGalleryShareError(locale, errorRaw) : '';
   const roomLabel = room?.trim() || '—';
@@ -370,6 +396,28 @@ export default function AccountingGallerySharePage({ token }) {
               </section>
             ) : null}
 
+            {albumView.multi ? (
+              <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="图库">
+                {albumView.albums.map((album) => {
+                  const selected = album.id === activeAlbum?.id;
+                  return (
+                    <button
+                      key={album.id || 'legacy'}
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={downloading || preparing || sharing}
+                      onClick={() => handleSelectAlbum(album.id)}
+                      className={`px-3 py-1.5 text-sm rounded ${
+                        selected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-800'
+                      }`}
+                    >
+                      {galleryAlbumLabel(album)}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
             <div className="mb-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm space-y-3">
               <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
                 <button
@@ -411,7 +459,11 @@ export default function AccountingGallerySharePage({ token }) {
                 ) : null}
               </div>
               <p className="text-xs text-gray-500">
-                {inApp.restricted ? t.inAppSaveBlocked : t.actionsHint}
+                {inApp.restricted
+                  ? t.inAppSaveBlocked
+                  : albumView.multi
+                    ? t.actionsHintCurrent
+                    : t.actionsHint}
               </p>
               {!inApp.restricted && readyCount > 0 ? (
                 <p className="text-sm text-gray-800 font-medium">
@@ -422,7 +474,7 @@ export default function AccountingGallerySharePage({ token }) {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {photos.map((photo, index) => (
+              {visiblePhotos.map((photo, index) => (
                 <div
                   key={photo.id}
                   className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden min-w-0"
@@ -470,9 +522,9 @@ export default function AccountingGallerySharePage({ token }) {
         )}
       </main>
 
-      {viewerIndex !== null && photos.length > 0 ? (
+      {viewerIndex !== null && visiblePhotos.length > 0 ? (
         <PhotoViewer
-          photos={photos}
+          photos={visiblePhotos}
           initialIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
         />

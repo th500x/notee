@@ -77,6 +77,58 @@ function computeSettleFromInOut(cell) {
   return inVal - outVal;
 }
 
+const GALLERY_ALBUM_ID_RE = /^alb-[a-f0-9]{16}$/i;
+const GALLERY_ALBUM_NAME_RE = /^\d{8}(?:-\d{1,3})?$/;
+
+function normalizeGalleryAlbumId(raw) {
+  if (typeof raw !== 'string') return '';
+  const id = raw.trim();
+  return GALLERY_ALBUM_ID_RE.test(id) ? id.toLowerCase() : '';
+}
+
+function normalizeGalleryAlbumName(raw) {
+  if (typeof raw !== 'string') return '';
+  const name = raw.trim();
+  return GALLERY_ALBUM_NAME_RE.test(name) ? name : '';
+}
+
+/** 与前端 galleryAlbums.js 的入库规则一致：空库不保存，照片上的库编号不能丢。 */
+function normalizeStoredGalleryAlbums(rawAlbums, photos) {
+  const list = [];
+  const seen = new Set();
+  if (Array.isArray(rawAlbums)) {
+    for (const item of rawAlbums) {
+      if (list.length >= 50) break;
+      if (!item || typeof item !== 'object') continue;
+      const id = normalizeGalleryAlbumId(item.id);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      list.push({ id, name: normalizeGalleryAlbumName(item.name) });
+    }
+  }
+  const used = [];
+  const usedSet = new Set();
+  for (const photo of photos || []) {
+    const id = normalizeGalleryAlbumId(photo?.albumId);
+    if (!id || usedSet.has(id)) continue;
+    usedSet.add(id);
+    used.push(id);
+  }
+  const kept = [];
+  const keptIds = new Set();
+  for (const album of list) {
+    if (!usedSet.has(album.id)) continue;
+    kept.push(album);
+    keptIds.add(album.id);
+  }
+  for (const id of used) {
+    if (keptIds.has(id) || kept.length >= 50) continue;
+    kept.push({ id, name: '' });
+    keptIds.add(id);
+  }
+  return kept;
+}
+
 function normalizeGalleryPhoto(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim().slice(0, 200) : '';
@@ -88,7 +140,8 @@ function normalizeGalleryPhoto(raw) {
     name: typeof raw.name === 'string' ? raw.name.slice(0, 255) : '',
     size: Number.isFinite(Number(raw.size)) ? Number(raw.size) : undefined,
     uploadedAt: typeof raw.uploadedAt === 'string' ? raw.uploadedAt.slice(0, 50) : '',
-    capturedAt: typeof raw.capturedAt === 'string' ? raw.capturedAt.slice(0, 50) : ''
+    capturedAt: typeof raw.capturedAt === 'string' ? raw.capturedAt.slice(0, 50) : '',
+    albumId: normalizeGalleryAlbumId(raw.albumId)
   };
 }
 
@@ -135,6 +188,7 @@ function normalizeAccountingSheet(raw) {
             payRent: payRentStr
           };
         }
+        const photos = normalizeGalleryPhotos(row.photos);
         return {
           id:
             typeof row.id === 'string' && row.id.trim()
@@ -152,7 +206,8 @@ function normalizeAccountingSheet(raw) {
           price: typeof row.price === 'string' ? row.price.slice(0, 500) : '',
           deposit: typeof row.deposit === 'string' ? row.deposit.slice(0, 500) : '',
           months,
-          photos: normalizeGalleryPhotos(row.photos),
+          photos,
+          galleryAlbums: normalizeStoredGalleryAlbums(row.galleryAlbums, photos),
           galleryShareToken: normalizeGalleryShareToken(row.galleryShareToken),
           galleryListing: normalizeGalleryListing(row.galleryListing)
         };
