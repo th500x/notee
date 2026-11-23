@@ -302,7 +302,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
     'w-full min-w-[140px] max-w-[220px] px-2 py-1.5 rounded-md text-sm text-gray-900 border border-white/40 bg-white/95 focus:outline-none focus:ring-2 focus:ring-white'
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       <div className="flex items-center gap-4 flex-wrap">
         <button
           type="button"
@@ -547,12 +547,12 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">{error}</div>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="grid w-full min-w-0 gap-3 grid-cols-3">
         <button
           type="button"
           onClick={handleSave}
           disabled={saving || periodOrderInvalid}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+          className="min-w-0 py-3 px-3 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           {saving ? 'Saving…' : 'Save to server'}
         </button>
@@ -561,7 +561,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           onClick={handleCarryCurrentToLastMonth}
           disabled={sheet.rows.length === 0}
           title="Copies current meter readings into last month and clears current for each row; also rolls Billing period (Current → Previous, Current = today)."
-          className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50"
+          className="min-w-0 py-3 px-3 sm:px-4 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
         >
           Copy current → last
         </button>
@@ -569,7 +569,7 @@ export default function UtilityBillPage({ project, onBack, onSaved }) {
           type="button"
           onClick={openExportPicker}
           disabled={exporting || periodOrderInvalid}
-          className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 flex items-center gap-2"
+          className="min-w-0 py-3 px-3 sm:px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center flex items-center justify-center gap-2"
         >
           <span>📊</span>
           <span>{exporting ? 'Exporting…' : 'Export'}</span>

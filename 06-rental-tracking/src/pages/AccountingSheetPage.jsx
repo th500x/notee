@@ -7,6 +7,8 @@ import {
   emptyRentRow
 } from '../utils/accountingSheetModel';
 import { normalizeGalleryListing } from '../utils/galleryListing';
+import { copyPlainText } from '../utils/accountingGalleryShare';
+import { buildGalleryLinkDigest } from '../utils/galleryLinkDigest.js';
 import { AccountingRentTab } from '../components/accounting/AccountingRentTab';
 import { AccountingExpenseTab } from '../components/accounting/AccountingExpenseTab';
 import { AccountingSummaryTab } from '../components/accounting/AccountingSummaryTab';
@@ -18,7 +20,7 @@ const TABS = [
 ];
 
 /**
- * 账目单主页面：三 Tab + 添加条目（租金）/ 保存 / 切换当月。
+ * 账目单主页面：三 Tab。房源一览底栏是图库链接 / 添加条目 / 保存 / 切换当月。
  */
 export default function AccountingSheetPage({ project, onBack, onSaved, onProjectSynced }) {
   const [activeTab, setActiveTab] = useState('rent');
@@ -138,6 +140,45 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
     }));
   }, []);
 
+  const handleCopyGalleryLinks = useCallback(async () => {
+    const rows = sheet.rentRows || [];
+    const withPhotos = rows.filter((row) => Array.isArray(row.photos) && row.photos.length > 0);
+    const shareable = withPhotos.filter((row) => String(row.galleryShareToken || '').trim());
+    const missingLink = withPhotos.length - shareable.length;
+    if (shareable.length === 0) {
+      alert(
+        missingLink > 0
+          ? `有 ${missingLink} 个房源有照片，但还没有分享链接。请打开图库保存后再复制。`
+          : '当前账目单里还没有可以复制的图库。'
+      );
+      return;
+    }
+    const unsaved = shareable.filter((row) => isRentRowGalleryUnsaved(row.id));
+    if (unsaved.length > 0) {
+      alert(`有 ${unsaved.length} 个房源的图库还没保存到服务器，复制出去的链接打不开。请先点「保存到服务器」。`);
+      return;
+    }
+    const text = buildGalleryLinkDigest(shareable, window.location.origin);
+    try {
+      await copyPlainText(text);
+    } catch (e) {
+      alert(e?.message || '复制失败');
+      return;
+    }
+    const missingStatus = shareable.filter((row) => {
+      const occupancy = row.galleryListing?.occupancy;
+      return occupancy !== 'rented' && occupancy !== 'vacant';
+    }).length;
+    const notes = [];
+    if (missingStatus > 0) {
+      notes.push(`其中 ${missingStatus} 个还没填已出租或未出租，复制时没有写状态。`);
+    }
+    if (missingLink > 0) {
+      notes.push(`另有 ${missingLink} 个房源有照片但没有分享链接，没有放进去。`);
+    }
+    alert(`已复制 ${shareable.length} 个图库链接。${notes.join('')}`);
+  }, [sheet.rentRows, isRentRowGalleryUnsaved]);
+
   return (
     <div className="w-full min-w-0 space-y-6">
       <div className="flex items-center gap-4 flex-wrap">
@@ -197,8 +238,18 @@ export default function AccountingSheetPage({ project, onBack, onSaved, onProjec
       ) : null}
 
       <div
-        className={`grid w-full min-w-0 gap-3 ${activeTab === 'rent' ? 'grid-cols-3' : 'grid-cols-2'}`}
+        className={`grid w-full min-w-0 gap-3 ${activeTab === 'rent' ? 'grid-cols-4' : 'grid-cols-2'}`}
       >
+        {activeTab === 'rent' ? (
+          <button
+            type="button"
+            onClick={handleCopyGalleryLinks}
+            disabled={saving}
+            className="min-w-0 py-3 px-3 sm:px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 text-sm sm:text-base text-center"
+          >
+            图库链接
+          </button>
+        ) : null}
         {activeTab === 'rent' ? (
           <button
             type="button"

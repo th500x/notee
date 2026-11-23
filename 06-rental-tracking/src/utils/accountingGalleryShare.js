@@ -38,22 +38,28 @@ export function buildGalleryShareUrl(token) {
   return `${origin}${GALLERY_PATH_PREFIX}${encodeURIComponent(token)}`;
 }
 
-export async function copyGalleryShareUrl(token) {
-  const url = buildGalleryShareUrl(token);
-  if (!url) throw new Error('尚未生成分享链接');
+export async function copyPlainText(text) {
+  const value = String(text || '');
+  if (!value) throw new Error('没有可复制的内容');
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(url);
-    return url;
+    await navigator.clipboard.writeText(value);
+    return value;
   }
   const ta = document.createElement('textarea');
-  ta.value = url;
+  ta.value = value;
   ta.style.position = 'fixed';
   ta.style.left = '-9999px';
   document.body.appendChild(ta);
   ta.select();
   document.execCommand('copy');
   document.body.removeChild(ta);
-  return url;
+  return value;
+}
+
+export async function copyGalleryShareUrl(token) {
+  const url = buildGalleryShareUrl(token);
+  if (!url) throw new Error('尚未生成分享链接');
+  return copyPlainText(url);
 }
 
 function sanitizeFilenamePart(s) {
