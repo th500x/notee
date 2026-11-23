@@ -211,8 +211,8 @@ async function checkConnection() {
   }
 }
 
-/** 公开图库下载默认：最长边 1080（原图仍保留在 OSS） */
-const GALLERY_DOWNLOAD_PROCESS = 'image/resize,l_1080/quality,q_85';
+/** 公开图库下载：最长边 2048，约原图一半。页面上看图仍用 1080。原图仍留在 OSS。 */
+const GALLERY_DOWNLOAD_PROCESS = 'image/resize,l_2048/quality,q_85';
 
 /**
  * 从 OSS 读取对象（供公开图库经后端代理下载，避免浏览器 CORS）

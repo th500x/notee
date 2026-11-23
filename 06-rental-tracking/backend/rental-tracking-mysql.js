@@ -211,7 +211,7 @@ router.get('/public/gallery/:token/download', async (req, res) => {
       return res.status(503).json({ success: false, error: '照片服务暂不可用' });
     }
 
-    // 公开分享下载默认 1080p；图片处理失败则回退原图（上传始终存原图）
+    // 公开分享下载最长边 2048；图片处理失败则回退原图（上传始终存原图）
     let content;
     let contentType;
     let usedProcess = true;
@@ -220,7 +220,7 @@ router.get('/public/gallery/:token/download', async (req, res) => {
         process: ossService.GALLERY_DOWNLOAD_PROCESS
       }));
     } catch (processErr) {
-      console.warn('[API] 公开图库 1080 处理失败，回退原图:', processErr.message);
+      console.warn('[API] 公开图库 2048 处理失败，回退原图:', processErr.message);
       usedProcess = false;
       ({ content, contentType } = await ossService.getPhotoObject(key));
     }
