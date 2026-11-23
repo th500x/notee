@@ -174,6 +174,7 @@ router.get('/public/gallery/:token', async (req, res) => {
       success: true,
       room: gallery.room,
       photos,
+      albums: gallery.albums || [],
       listing: gallery.listing || {}
     });
   } catch (error) {
