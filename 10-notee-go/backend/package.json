@@ -21,6 +21,7 @@
     "grant:lion": "node scripts/grant-lion-login-id.js",
     "grant:party": "node scripts/grant-party-pass.js",
     "test:party-pass": "node scripts/assert-party-pass.js",
+    "test:voided": "node scripts/assert-voided-purchases.js",
     "test:game-results": "node scripts/assert-game-results.js",
     "test:gifts": "node scripts/assert-gifts.js",
     "gift:create": "node scripts/gift-create.js",

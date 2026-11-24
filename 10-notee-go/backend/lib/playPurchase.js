@@ -141,7 +141,112 @@ async function verifyProduct({ productId, purchaseToken }) {
   return 'pending';
 }
 
+const VOIDED_LOOKBACK_MS = 29 * 24 * 60 * 60 * 1000;
+
+/**
+ * One page of the voided-purchases list. A row without a purchase token fails the page.
+ * @returns {{ purchases: Array<{purchaseToken: string, orderId: string|null, voidedTimeMillis: string|null}>, nextPageToken: string }}
+ */
+function readVoidedPage(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw httpError(502, 'Google 的退款结果无法读取', 'PLAY_VERIFY_FAILED');
+  }
+  const rows = body.voidedPurchases == null ? [] : body.voidedPurchases;
+  if (!Array.isArray(rows)) {
+    throw httpError(502, 'Google 的退款结果无法读取', 'PLAY_VERIFY_FAILED');
+  }
+  const purchases = [];
+  for (const row of rows) {
+    const token = row && typeof row.purchaseToken === 'string' ? row.purchaseToken.trim() : '';
+    if (!token) {
+      throw httpError(502, 'Google 的退款结果缺了购买凭证', 'PLAY_VERIFY_FAILED');
+    }
+    purchases.push({
+      purchaseToken: token,
+      orderId: row.orderId == null ? null : String(row.orderId),
+      voidedTimeMillis: row.voidedTimeMillis == null ? null : String(row.voidedTimeMillis),
+    });
+  }
+  const next = body.tokenPagination && body.tokenPagination.nextPageToken;
+  return {
+    purchases,
+    nextPageToken: typeof next === 'string' ? next.trim() : '',
+  };
+}
+
+function getPublisherJson(url, bearer) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      url,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8');
+          let parsed = null;
+          try {
+            parsed = text ? JSON.parse(text) : {};
+          } catch (err) {
+            parsed = null;
+          }
+          if (res.statusCode < 200 || res.statusCode >= 300 || !parsed || typeof parsed !== 'object') {
+            reject(httpError(
+              503,
+              `Google 没有接受退款核对 (${res.statusCode})`,
+              'PLAY_VERIFY_UNAVAILABLE'
+            ));
+            return;
+          }
+          resolve(parsed);
+        });
+      }
+    );
+    req.on('error', () => {
+      reject(httpError(503, 'Google 没有接受退款核对', 'PLAY_VERIFY_UNAVAILABLE'));
+    });
+    req.end();
+  });
+}
+
+/**
+ * Voided in-app purchases in the last 29 days. Throws if Play fails or a row has no token.
+ * Does not refund anything.
+ */
+async function listVoidedPurchases() {
+  const account = loadAccount();
+  if (!account) {
+    throw httpError(503, '服务器还不能向 Google 核对购买', 'PLAY_VERIFY_UNAVAILABLE');
+  }
+  const bearer = await accessToken(account);
+  const endTime = Date.now();
+  const startTime = endTime - VOIDED_LOOKBACK_MS;
+  const all = [];
+  let pageToken = '';
+  for (let page = 0; page < 20; page += 1) {
+    const url = new URL(
+      'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/' +
+      `${encodeURIComponent(packageName())}/purchases/voidedpurchases`
+    );
+    url.searchParams.set('startTime', String(startTime));
+    url.searchParams.set('endTime', String(endTime));
+    url.searchParams.set('type', '0');
+    url.searchParams.set('maxResults', '1000');
+    if (pageToken) url.searchParams.set('token', pageToken);
+    const pageResult = readVoidedPage(await getPublisherJson(url, bearer));
+    all.push(...pageResult.purchases);
+    if (!pageResult.nextPageToken) return all;
+    pageToken = pageResult.nextPageToken;
+  }
+  throw httpError(502, 'Google 的退款结果页数过多', 'PLAY_VERIFY_FAILED');
+}
+
 module.exports = {
   packageName,
   verifyProduct,
+  readVoidedPage,
+  listVoidedPurchases,
 };

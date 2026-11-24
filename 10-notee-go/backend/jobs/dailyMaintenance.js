@@ -7,6 +7,7 @@ const cron = require('node-cron');
 const { purgeExpiredPosts } = require('../services/ttlService');
 const { freezePreviousMonthIfNeeded } = require('../services/boardService');
 const { purgeIdleSilentAccounts } = require('../services/userService');
+const { revokeVoidedPurchases } = require('../services/partyPassService');
 
 async function runDailyMaintenance(reason = 'manual') {
   console.log(`[notee-go/jobs] daily start (${reason})`);
@@ -30,6 +31,14 @@ async function runDailyMaintenance(reason = 'manual') {
   } catch (err) {
     console.error('[notee-go/jobs] silent idle failed:', err.message);
   }
+  try {
+    const pass = await revokeVoidedPurchases();
+    console.log(
+      `[notee-go/jobs] voided fetched=${pass.fetched} matched=${pass.matched} revoked=${pass.revoked}`
+    );
+  } catch (err) {
+    console.error('[notee-go/jobs] voided purchases failed:', err.message);
+  }
 }
 
 /**
@@ -45,7 +54,7 @@ function startDailyMaintenanceJobs() {
     },
     { timezone: 'Asia/Bangkok' }
   );
-  console.log('[notee-go/jobs] scheduled 00:15 Asia/Bangkok (TTL + silent idle + month board)');
+  console.log('[notee-go/jobs] scheduled 00:15 Asia/Bangkok (TTL + silent idle + month board + voided purchases)');
 
   setTimeout(() => {
     runDailyMaintenance('startup').catch((err) => {

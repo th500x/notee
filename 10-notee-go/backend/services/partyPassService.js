@@ -15,7 +15,7 @@ const {
   upgradeAdjustment,
   productIdFor,
 } = require('../lib/partyPass');
-const { verifyProduct } = require('../lib/playPurchase');
+const { verifyProduct, listVoidedPurchases } = require('../lib/playPurchase');
 const { rowToUser, findUserById } = require('./userService');
 const { revokeLapsedHonor } = require('./honorLoginIdService');
 
@@ -197,8 +197,43 @@ async function grantStaff(loginId, tier) {
   return publicUser(userId);
 }
 
+/**
+ * Daily. Marks Play purchases Google has voided as canceled, then recomputes the tier.
+ * A token we never recorded is skipped. A Play failure throws and changes no row
+ * that has not already been committed.
+ */
+async function revokeVoidedPurchases() {
+  const voided = await listVoidedPurchases();
+  let matched = 0;
+  let revoked = 0;
+  for (const item of voided) {
+    const hash = tokenHash(item.purchaseToken);
+    const rows = await query(
+      `SELECT user_id, state FROM party_purchases WHERE token_hash = ? LIMIT 1`,
+      [hash]
+    );
+    const row = rows[0];
+    if (!row) continue;
+    matched += 1;
+    if (row.state === 'canceled') continue;
+    const changed = await transaction(async (conn) => {
+      const [updated] = await conn.query(
+        `UPDATE party_purchases SET state = 'canceled'
+         WHERE token_hash = ? AND state <> 'canceled'`,
+        [hash]
+      );
+      const count = updated && updated.affectedRows ? updated.affectedRows : 0;
+      if (count > 0) await recompute(conn, row.user_id);
+      return count;
+    });
+    if (changed > 0) revoked += 1;
+  }
+  return { fetched: voided.length, matched, revoked };
+}
+
 module.exports = {
   submitPlayPurchase,
   restorePlayPurchases,
   grantStaff,
+  revokeVoidedPurchases,
 };
