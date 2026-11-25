@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react'
+import { useState, useLayoutEffect, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { buildOssImageUrl } from '../utils/ossImageUrl'
 
@@ -6,6 +6,7 @@ import { buildOssImageUrl } from '../utils/ossImageUrl'
  * 照片查看器
  * 账目单页面会横滑、缩放。按整页 fixed 铺开时，大图会落到当前屏幕外面，只在角落露出一块。
  * 这里按手机当前看得见的区域铺满，大图在这块区域里居中。
+ * 多张时可用左右键翻图，Esc 关闭。
  */
 
 function readVisibleScreen() {
@@ -42,23 +43,56 @@ function useVisibleScreen() {
 }
 
 function PhotoViewer({ photos, initialIndex = 0, onClose }) {
+  const list = Array.isArray(photos) ? photos : []
+  const count = list.length
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const screen = useVisibleScreen()
 
-  if (!photos || photos.length === 0) return null
+  const goPrev = useCallback(() => {
+    if (count <= 1) return
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : count - 1))
+  }, [count])
 
-  const currentPhoto = photos[currentIndex]
+  const goNext = useCallback(() => {
+    if (count <= 1) return
+    setCurrentIndex((prev) => (prev < count - 1 ? prev + 1 : 0))
+  }, [count])
+
+  useEffect(() => {
+    if (count === 0) return undefined
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose?.()
+        return
+      }
+      if (count <= 1) return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        goPrev()
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        goNext()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [count, onClose, goPrev, goNext])
+
+  if (count === 0) return null
+
+  const currentPhoto = list[currentIndex] || list[0]
   const frameW = Math.max(1, Math.round(screen.width * 0.92))
   const frameH = Math.max(1, Math.round(screen.height * 0.86))
 
   const handlePrevious = (e) => {
     e.stopPropagation()
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : photos.length - 1))
+    goPrev()
   }
 
   const handleNext = (e) => {
     e.stopPropagation()
-    setCurrentIndex((prev) => (prev < photos.length - 1 ? prev + 1 : 0))
+    goNext()
   }
 
   const handleDownload = (e) => {
@@ -92,7 +126,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
 
       <div className="absolute top-4 left-4 text-white z-10">
         <p className="text-sm">
-          {currentIndex + 1} / {photos.length}
+          {currentIndex + 1} / {count}
         </p>
         {currentPhoto.name && (
           <p className="text-xs text-gray-300 mt-1">{currentPhoto.name}</p>
@@ -107,7 +141,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         ⬇️
       </button>
 
-      {photos.length > 1 && (
+      {count > 1 && (
         <button
           onClick={handlePrevious}
           className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-5xl hover:text-gray-300 z-10"
@@ -125,7 +159,7 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         onClick={(e) => e.stopPropagation()}
       />
 
-      {photos.length > 1 && (
+      {count > 1 && (
         <button
           onClick={handleNext}
           className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-5xl hover:text-gray-300 z-10"
@@ -135,13 +169,13 @@ function PhotoViewer({ photos, initialIndex = 0, onClose }) {
         </button>
       )}
 
-      {photos.length > 1 && (
+      {count > 1 && (
         <div
           className="absolute bottom-3 left-1/2 z-10 max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex gap-2">
-            {photos.map((photo, index) => (
+            {list.map((photo, index) => (
               <button
                 key={index}
                 onClick={(e) => {
