@@ -105,7 +105,10 @@ export default function AccountingGallerySharePage({ token }) {
     albumView.albums[albumView.albums.length - 1];
   const visiblePhotos = activeAlbum?.photos || [];
 
+  const openInBrowserBlocked = inApp.app === 'wechat';
+
   const handleOpenInBrowser = useCallback(() => {
+    if (openInBrowserBlocked) return;
     setSaveProgress(t.openInBrowserBusy);
     const jumped = tryOpenInSystemBrowser();
     if (!jumped) {
@@ -114,7 +117,7 @@ export default function AccountingGallerySharePage({ token }) {
     } else {
       setTimeout(() => setSaveProgress(''), 3000);
     }
-  }, [t]);
+  }, [t, openInBrowserBlocked]);
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -329,13 +332,22 @@ export default function AccountingGallerySharePage({ token }) {
                 </h2>
                 <p className="text-sm text-amber-900 leading-relaxed">{t.inAppBannerBody}</p>
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  {inApp.os === 'ios' ? t.inAppHowToIos : t.inAppHowToAndroid}
+                  {openInBrowserBlocked
+                    ? t.inAppHowToWechat
+                    : inApp.os === 'ios'
+                      ? t.inAppHowToIos
+                      : t.inAppHowToAndroid}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
                   <button
                     type="button"
                     onClick={handleOpenInBrowser}
-                    className="px-4 py-2.5 rounded-lg bg-amber-700 text-white font-medium hover:bg-amber-800"
+                    disabled={openInBrowserBlocked}
+                    className={`px-4 py-2.5 rounded-lg font-medium ${
+                      openInBrowserBlocked
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-amber-700 text-white hover:bg-amber-800'
+                    }`}
                   >
                     {t.openInBrowser}
                   </button>
@@ -420,18 +432,16 @@ export default function AccountingGallerySharePage({ token }) {
 
             <div className="mb-4 p-4 bg-white rounded-lg border border-blue-200 shadow-sm space-y-3">
               <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
-                <button
-                  type="button"
-                  onClick={inApp.restricted ? handleOpenInBrowser : handleDownloadAll}
-                  disabled={busy && !inApp.restricted}
-                  className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {inApp.restricted
-                    ? t.openInBrowser
-                    : downloading
-                      ? t.downloadingAll
-                      : t.downloadToPhone}
-                </button>
+                {!inApp.restricted ? (
+                  <button
+                    type="button"
+                    onClick={handleDownloadAll}
+                    disabled={busy}
+                    className="px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {downloading ? t.downloadingAll : t.downloadToPhone}
+                  </button>
+                ) : null}
                 {!inApp.restricted && canShareFiles ? (
                   <button
                     type="button"

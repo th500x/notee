@@ -27,6 +27,7 @@ const MESSAGES = {
       '微信 / LINE 等内置浏览器通常无法下载或分享图片。请用手机自带浏览器（Safari / Chrome）打开本页后再操作。',
     inAppHowToIos: 'iPhone：点右上角「⋯」→ 选择「在 Safari 中打开」或「在浏览器中打开」。',
     inAppHowToAndroid: 'Android：可点下方按钮尝试用 Chrome 打开；若无反应，点右上角「⋯」→「在浏览器中打开」。',
+    inAppHowToWechat: '微信不允许网页直接跳到系统浏览器。请点右上角「⋯」→「在浏览器中打开」，或先点「复制本页链接」再到 Chrome / Safari 粘贴。',
     inAppSaveBlocked:
       '当前 App 内置浏览器无法完成下载/分享。请先用系统浏览器打开本页，再点「下载到手机」或「分享到应用」。',
     actionsHint:
@@ -108,6 +109,8 @@ const MESSAGES = {
     inAppHowToIos: 'iPhone: tap ⋯ at the top right → “Open in Safari” / “Open in Browser”.',
     inAppHowToAndroid:
       'Android: try the button below to open Chrome. If nothing happens, tap ⋯ → “Open in browser”.',
+    inAppHowToWechat:
+      'WeChat does not let this page open the system browser. Tap ⋯ → “Open in browser”, or copy the link and paste it in Chrome / Safari.',
     inAppSaveBlocked:
       'This in-app browser cannot download or share. Open this page in your system browser, then tap “Download to phone” or “Share to app”.',
     actionsHint:
@@ -189,6 +192,8 @@ const MESSAGES = {
     inAppHowToIos: 'iPhone: กด ⋯ มุมขวาบน →「เปิดใน Safari」/「เปิดในเบราว์เซอร์」',
     inAppHowToAndroid:
       'Android: ลองปุ่มด้านล่างเพื่อเปิด Chrome หากไม่ตอบสนอง กด ⋯ →「เปิดในเบราว์เซอร์」',
+    inAppHowToWechat:
+      'WeChat ไม่อนุญาตให้หน้านี้เปิดเบราว์เซอร์ของเครื่องเอง กด ⋯ →「เปิดในเบราว์เซอร์」 หรือคัดลอกลิงก์แล้ววางใน Chrome / Safari',
     inAppSaveBlocked:
       'เบราว์เซอร์ในแอปนี้ดาวน์โหลด/แชร์ไม่ได้ กรุณาเปิดหน้านี้ในเบราว์เซอร์ของเครื่องก่อน แล้วกด「ดาวน์โหลดลงมือถือ」หรือ「แชร์ไปแอป」',
     actionsHint:
